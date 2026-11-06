@@ -5,30 +5,58 @@
 
 <img src="Logo.png" alt="BitChord app icon" width="200" />
 
-# BitChord
+# BitChord for macOS (Apple Silicon)
 
-### Aesthetic YouTube Music Client
+### Aesthetic YouTube Music Client • Native Apple Silicon Build (M1/M2/M3/M4)
 
 <br/>
 
-[![Latest release](https://img.shields.io/github/v/release/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
+[![macOS Apple Silicon](https://img.shields.io/badge/Platform-macOS%20Apple%20Silicon%20(arm64)-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/fumakill4/BitChord/releases)
+[![Version](https://img.shields.io/badge/Release-v1.9.1-blue?style=for-the-badge)](https://github.com/fumakill4/BitChord/releases/tag/v1.9.1)
+[![Original Repo](https://img.shields.io/badge/Original%20Repository-kushagrasinghx%2FBitChord-181717?style=for-the-badge&logo=github)](https://github.com/kushagrasinghx/BitChord)
 [![License](https://img.shields.io/github/license/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/kushagrasinghx/BitChord/total?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
-[![Listening now](https://api.bitchord.kushagrasingh.in/api/stats/live/badge.svg)](https://api.bitchord.kushagrasingh.in/api/stats/live)
 
 <br/>
 
-[**Download**](#download) · [**Features**](#features) · [**Contributing**](#contributing) · [**Support**](#support) · [**Disclaimer**](#disclaimer)
-
-<br/>
-
-<a href="https://fmhy.net/mobile#youtube-music" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/fmhy/cozy.svg" alt="Featured on FMHY" height="55"/></a>
-<a href="https://trendshift.io/repositories/177639?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-177639" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/177639" alt="kushagrasinghx%2FBitChord | Trendshift" width="250" height="55"/></a>
+[**Download .DMG**](#download) · [**Installation Guide**](#installation-on-macos) · [**Features**](#features) · [**Original Repository**](https://github.com/kushagrasinghx/BitChord)
 
 </div>
 
+> [!NOTE]
+> **About this Repository:**  
+> This repository provides native **macOS Apple Silicon (`arm64`)** builds and packages (`.dmg` installer & standalone `.app`) of **BitChord v1.9.1**, complete with high-resolution retina app icons and bundled Java 21 runtime.  
+> **Original project & source by Kushagra Singh:** [https://github.com/kushagrasinghx/BitChord](https://github.com/kushagrasinghx/BitChord).
+
 > [!IMPORTANT]
 > BitChord is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
+
+---
+
+<div align="center">
+
+<h1><a id="download"></a>Download for macOS</h1>
+
+<a href="https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-1.9.1.dmg" target="_blank" rel="noopener noreferrer">
+  <img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/apple/cozy.svg" alt="Download BitChord for macOS Apple Silicon" height="55"/>
+</a>
+
+<br/>
+
+**[Download BitChord-1.9.1.dmg (Apple Silicon arm64)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-1.9.1.dmg)**
+
+</div>
+
+### <a id="installation-on-macos"></a>🍎 Installation on macOS
+
+1. Download **`BitChord-1.9.1.dmg`** from the [Releases](https://github.com/fumakill4/BitChord/releases) page.
+2. Double-click the `.dmg` file to open it.
+3. Drag **BitChord.app** into your **Applications** folder.
+4. **Gatekeeper Notice:** Because this is an open-source build without an expensive Apple Developer ID certificate, macOS may show a prompt (*"BitChord is from an unidentified developer"*).  
+   To allow it to open smoothly, run this single command in your Terminal:
+   ```bash
+   xattr -cr /Applications/BitChord.app
+   ```
+   Or right-click (Control-click) `BitChord.app` in Finder and select **Open**.
 
 ---
 
