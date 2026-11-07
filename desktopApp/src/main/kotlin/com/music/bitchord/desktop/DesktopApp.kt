@@ -5185,7 +5185,18 @@ private fun DesktopFloatingNavigation(
                 label = "liquidGlassBubbleSpring",
             )
 
-            // Overhanging Floating Bubble Lens (taller than track, floats above/below)
+            // Overhanging Floating Bubble Lens (taller than track, with chromatic aberration prism rim)
+            val chromaticRimBrush = remember {
+                Brush.linearGradient(
+                    listOf(
+                        Color(0x9000E5FF), // Cyan chromatic fringe
+                        Color.White.copy(alpha = 0.90f),
+                        Color(0x90FF8A50), // Warm amber chromatic fringe
+                        Color.White.copy(alpha = 0.40f),
+                    ),
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .offset(x = tabWidth * animatedIndex - 2.dp)
@@ -5201,30 +5212,37 @@ private fun DesktopFloatingNavigation(
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.White.copy(alpha = 0.35f),
-                                Color.White.copy(alpha = 0.13f),
+                                Color.White.copy(alpha = 0.32f),
+                                Color.White.copy(alpha = 0.10f),
                             ),
                         ),
                     )
                     .border(
-                        width = 0.85.dp,
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.65f),
-                                Color.White.copy(alpha = 0.18f),
-                            ),
-                        ),
+                        width = 0.9.dp,
+                        brush = chromaticRimBrush,
                         shape = bubbleShape,
                     )
                     .drawBehind {
+                        // Top and bottom specular glass highlights
                         drawRoundRect(
                             brush = Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.42f),
+                                    Color.White.copy(alpha = 0.45f),
                                     Color.Transparent,
                                 ),
                                 startY = 0f,
-                                endY = size.height * 0.50f,
+                                endY = size.height * 0.45f,
+                            ),
+                            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
+                        )
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = 0.20f),
+                                ),
+                                startY = size.height * 0.70f,
+                                endY = size.height,
                             ),
                             cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
                         )
@@ -5272,33 +5290,112 @@ private fun DesktopFloatingNavigation(
             ) {
                 tabs.forEachIndexed { index, (_, iconAndLabel) ->
                     val isSelected = index == selectedIndex
+                    val dist = kotlin.math.abs(index.toFloat() - animatedIndex)
+                    val inLens = (1.0f - dist.coerceIn(0f, 1f))
+                    // Real convex lens magnification: expands content under the glass lens
+                    val lensScale = 1.0f + 0.16f * inLens
+                    // Barrel distortion refraction translation: physical curve displacement under moving glass
+                    val refractionShiftX = if (dist in 0.05f..0.95f) {
+                        val sign = if (index.toFloat() > animatedIndex) 1f else -1f
+                        -kotlin.math.sin(dist * kotlin.math.PI.toFloat()) * sign * with(density) { 3.5.dp.toPx() }
+                    } else 0f
+
                     val contentTint by animateColorAsState(
                         targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                         label = "tabContentTint",
                     )
 
-                    Column(
+                    Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Icon(
-                            imageVector = iconAndLabel.first,
-                            contentDescription = iconAndLabel.second,
-                            tint = contentTint,
-                            modifier = Modifier.size(19.dp),
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = iconAndLabel.second,
-                            color = contentTint,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.5.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                            ),
-                        )
+                        // Chromatic aberration fringes when passing through the lens rim
+                        if (dist in 0.12f..0.88f) {
+                            Column(
+                                modifier = Modifier
+                                    .graphicsLayer {
+                                        scaleX = lensScale
+                                        scaleY = lensScale
+                                        translationX = refractionShiftX - with(density) { 1.2.dp.toPx() }
+                                        alpha = 0.35f
+                                    },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(
+                                    imageVector = iconAndLabel.first,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00E5FF),
+                                    modifier = Modifier.size(19.dp),
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = iconAndLabel.second,
+                                    color = Color(0xFF00E5FF),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                    ),
+                                )
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .graphicsLayer {
+                                        scaleX = lensScale
+                                        scaleY = lensScale
+                                        translationX = refractionShiftX + with(density) { 1.2.dp.toPx() }
+                                        alpha = 0.35f
+                                    },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(
+                                    imageVector = iconAndLabel.first,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF8A50),
+                                    modifier = Modifier.size(19.dp),
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = iconAndLabel.second,
+                                    color = Color(0xFFFF8A50),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                    ),
+                                )
+                            }
+                        }
+
+                        // Main Content Layer (magnified and displaced under the lens)
+                        Column(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    scaleX = lensScale
+                                    scaleY = lensScale
+                                    translationX = refractionShiftX
+                                },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Icon(
+                                imageVector = iconAndLabel.first,
+                                contentDescription = iconAndLabel.second,
+                                tint = contentTint,
+                                modifier = Modifier.size(19.dp),
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = iconAndLabel.second,
+                                color = contentTint,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                ),
+                            )
+                        }
                     }
                 }
             }
