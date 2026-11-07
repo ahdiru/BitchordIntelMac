@@ -50,7 +50,7 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 <br/>
 
 ### 📱 iPhone & iPad (iOS 17+)
-**[Download BitChord-iOS-LiquidGlass.ipa (Liquid Glass Edition)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-iOS-LiquidGlass.ipa)**  
+**[Download BitChord-iOS.ipa](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-iOS.ipa)**  
 <sub>Alternative build: **[BitChord-1.0.4-build13-iOS-unsigned.ipa](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-1.0.4-build13-iOS-unsigned.ipa)**</sub>
 
 </div>
@@ -72,7 +72,7 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 
 ### 📱 iPhone & iPad (Sideloading)
 
-1. Download **`BitChord-iOS-LiquidGlass.ipa`** from the [Releases](https://github.com/fumakill4/BitChord/releases) page.
+1. Download **`BitChord-iOS.ipa`** from the [Releases](https://github.com/fumakill4/BitChord/releases) page.
 2. Sideload it using your preferred sideloading tool:
    - **AltStore / SideStore**: Open the IPA in the app and sign with your Apple ID.
    - **Sideloadly**: Connect your device, drag the IPA into Sideloadly, and click Start.
