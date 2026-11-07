@@ -98,6 +98,18 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
    - **Scarlet**: Direct on-device installation.
 3. If prompted by iOS, go to **Settings → General → VPN & Device Management** and trust your developer certificate.
 
+### 🪟 Windows (10 & 11)
+
+**Option A — Setup Installer (Recommended):**
+1. Download **`BitChord-1.9.1-windows-x64-setup.exe`** from the [Windows Release](https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-windows) page.
+2. Run the `.exe` installer. It installs for the current user (no administrator permission required) and creates shortcuts in your Start Menu and Desktop.
+3. **SmartScreen Notice:** If Windows SmartScreen displays a warning (*"Windows protected your PC"*), click **More info** and select **Run anyway**.
+
+**Option B — Portable (.zip):**
+1. Download **`BitChord-1.9.1-windows-x64-portable.zip`**.
+2. Extract the archive to any folder or external drive.
+3. Launch **`BitChord.exe`** directly without installation.
+
 ---
 
 <div align="center">
