@@ -472,6 +472,10 @@ internal fun TransportRow(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     compact: Boolean = false,
+    shuffleEnabled: Boolean? = null,
+    onToggleShuffle: (() -> Unit)? = null,
+    repeatMode: Int? = null,
+    onCycleRepeat: (() -> Unit)? = null,
 ) {
     val playSize = if (compact) 58.dp else 74.dp
     val playTouch = if (compact) 76.dp else 92.dp
@@ -479,10 +483,22 @@ internal fun TransportRow(
     Row(
         modifier = Modifier.fillMaxWidth(),
         // SpaceAround, not SpaceEvenly: the outer margins take half a gap, so
-        // the three buttons spread a little further apart from each other.
+        // the buttons spread a little further apart from each other.
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (onToggleShuffle != null) {
+            BottomGlyph(
+                icon = BitChordIcons.Shuffle,
+                contentDescription = stringResource(
+                    if (shuffleEnabled == true) Res.string.shuffle_on else Res.string.shuffle_off,
+                ),
+                onClick = onToggleShuffle,
+                highlighted = shuffleEnabled == true,
+                iconSize = if (compact) 22.dp else 26.dp,
+                vibrant = true,
+            )
+        }
         TransportGlyph(
             icon = Res.drawable.ic_player_previous,
             contentDescription = stringResource(Res.string.widget_previous),
@@ -523,6 +539,21 @@ internal fun TransportRow(
             enabled = nextEnabled,
             haptic = Haptic.SkipNext,
         )
+        if (onCycleRepeat != null && repeatMode != null) {
+            BottomGlyph(
+                icon = if (repeatMode == RepeatModes.ONE) null else BitChordIcons.Repeat,
+                label = if (repeatMode == RepeatModes.ONE) "1" else null,
+                contentDescription = when (repeatMode) {
+                    RepeatModes.ONE -> stringResource(Res.string.repeat_one)
+                    RepeatModes.ALL -> stringResource(Res.string.repeat_all)
+                    else -> stringResource(Res.string.repeat_off)
+                },
+                onClick = onCycleRepeat,
+                highlighted = repeatMode != RepeatModes.OFF,
+                iconSize = if (compact) 22.dp else 26.dp,
+                vibrant = true,
+            )
+        }
     }
 }
 

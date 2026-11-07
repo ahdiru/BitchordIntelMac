@@ -2237,6 +2237,10 @@ fun NowPlayingScreen(
                                     onPlayPause = onPlayPause,
                                     onNext = onNext,
                                     compact = compact,
+                                    shuffleEnabled = shuffleEnabled,
+                                    onToggleShuffle = onToggleShuffle,
+                                    repeatMode = repeatMode,
+                                    onCycleRepeat = onCycleRepeat,
                                 )
                             },
                             volume = if (hideVolumeBar) {

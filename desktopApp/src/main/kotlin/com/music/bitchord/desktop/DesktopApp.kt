@@ -78,6 +78,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.scrollBy
@@ -5078,62 +5079,86 @@ private fun DesktopFloatingNavigation(
     }
     val selected = tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
     val selectedIndex = tabs.indexOfFirst { it.first == selected }.coerceAtLeast(0)
-    val shape = RoundedCornerShape(percent = 50)
+    val trackShape = RoundedCornerShape(percent = 50)
+    val bubbleShape = RoundedCornerShape(percent = 50)
+
+    val haze = LocalDesktopHaze.current
+    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
 
     Box(
         modifier = Modifier
             .widthIn(max = 440.dp)
             .fillMaxWidth()
-            .shadow(
-                elevation = 24.dp,
-                shape = shape,
-                ambientColor = Color.Black.copy(alpha = 0.5f),
-                spotColor = Color.Black.copy(alpha = 0.7f),
-            )
-            .clip(shape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.20f),
-                        Color.White.copy(alpha = 0.08f),
-                        Color(0x3514141E),
-                    ),
-                ),
-            )
-            .border(
-                width = 1.dp,
-                brush = Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.55f),
-                        Color.White.copy(alpha = 0.12f),
-                        Color.White.copy(alpha = 0.30f),
-                    ),
-                ),
-                shape = shape,
-            )
-            .drawBehind {
-                // Specular liquid glass top sheen
-                drawRect(
-                    brush = Brush.verticalGradient(
+            .height(54.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        // 1. Frosted Liquid Glass Track Capsule (48dp height)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .shadow(
+                    elevation = 18.dp,
+                    shape = trackShape,
+                    ambientColor = Color.Black.copy(alpha = 0.45f),
+                    spotColor = Color.Black.copy(alpha = 0.65f),
+                )
+                .clip(trackShape)
+                .then(
+                    if (haze != null && !reduceDynamicBlur) {
+                        Modifier.hazeEffect(state = haze) {
+                            blurEnabled = true
+                            blurRadius = 26.dp
+                            noiseFactor = 0.04f
+                            tints = listOf(HazeTint(Color(0x3514141E)))
+                        }
+                    } else {
+                        Modifier.background(Color(0x751E1E28))
+                    },
+                )
+                .background(
+                    Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.22f),
-                            Color.Transparent,
+                            Color.White.copy(alpha = 0.14f),
+                            Color.White.copy(alpha = 0.03f),
+                            Color(0x18000000),
                         ),
-                        startY = 0f,
-                        endY = size.height * 0.55f,
                     ),
                 )
-            }
-            .padding(4.dp),
-    ) {
+                .border(
+                    width = 0.75.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.35f),
+                            Color.White.copy(alpha = 0.08f),
+                        ),
+                    ),
+                    shape = trackShape,
+                )
+                .drawBehind {
+                    drawRoundRect(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.28f),
+                                Color.Transparent,
+                            ),
+                            startY = 0f,
+                            endY = size.height * 0.45f,
+                        ),
+                        cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
+                    )
+                },
+        )
+
+        // 2. Sliding Bubble Lens + Tab Items
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp),
+                .height(54.dp),
+            contentAlignment = Alignment.CenterStart,
         ) {
             val tabCount = tabs.size
             val tabWidth = maxWidth / tabCount
-            val pillShape = RoundedCornerShape(percent = 50)
             val density = LocalDensity.current
             val tabWidthPx = with(density) { tabWidth.toPx() }
 
@@ -5146,70 +5171,79 @@ private fun DesktopFloatingNavigation(
                 selectedIndex.toFloat()
             }
 
-            // Fluid spring-physics slider animation
+            // Real Apple Bouncy Spring Physics
             val animatedIndex by animateFloatAsState(
                 targetValue = targetIndicatorIndex,
                 animationSpec = if (isDragging) {
                     spring(dampingRatio = 1.0f, stiffness = Spring.StiffnessHigh)
                 } else {
-                    spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
+                    spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = 380f,
+                    )
                 },
-                label = "liquidGlassSlider",
+                label = "liquidGlassBubbleSpring",
             )
 
-            // True Liquid Glass Sliding Pill Indicator
+            // Overhanging Floating Bubble Lens (taller than track, floats above/below)
             Box(
                 modifier = Modifier
-                    .offset(x = tabWidth * animatedIndex)
-                    .width(tabWidth)
-                    .fillMaxHeight()
-                    .padding(3.dp)
+                    .offset(x = tabWidth * animatedIndex - 2.dp)
+                    .width(tabWidth + 4.dp)
+                    .height(54.dp)
                     .shadow(
-                        elevation = 8.dp,
-                        shape = pillShape,
+                        elevation = 12.dp,
+                        shape = bubbleShape,
                         ambientColor = Color.Black.copy(alpha = 0.40f),
-                        spotColor = DesktopAccent.copy(alpha = 0.50f),
+                        spotColor = Color.Black.copy(alpha = 0.60f),
                     )
-                    .clip(pillShape)
+                    .clip(bubbleShape)
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.White.copy(alpha = 0.38f),
-                                Color.White.copy(alpha = 0.16f),
+                                Color.White.copy(alpha = 0.35f),
+                                Color.White.copy(alpha = 0.13f),
                             ),
                         ),
                     )
                     .border(
-                        width = 1.2.dp,
-                        brush = Brush.linearGradient(
+                        width = 0.85.dp,
+                        brush = Brush.verticalGradient(
                             listOf(
-                                Color.White.copy(alpha = 0.85f),
-                                Color.White.copy(alpha = 0.25f),
-                                DesktopAccent.copy(alpha = 0.50f),
+                                Color.White.copy(alpha = 0.65f),
+                                Color.White.copy(alpha = 0.18f),
                             ),
                         ),
-                        shape = pillShape,
+                        shape = bubbleShape,
                     )
                     .drawBehind {
-                        // Specular glass gleam
-                        drawRect(
+                        drawRoundRect(
                             brush = Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.35f),
+                                    Color.White.copy(alpha = 0.42f),
                                     Color.Transparent,
                                 ),
                                 startY = 0f,
-                                endY = size.height * 0.45f,
+                                endY = size.height * 0.50f,
                             ),
+                            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
                         )
                     },
             )
 
-            // Interactive & Draggable Tab Items Layer
+            // Interactive Tab Items Layer (handles BOTH Tap & Drag without conflict)
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(tabWidthPx, selectedIndex) {
+                    .pointerInput(tabWidthPx, tabs.size) {
+                        detectTapGestures { offset ->
+                            if (tabWidthPx > 0f) {
+                                val clickedIndex = (offset.x / tabWidthPx).toInt().coerceIn(0, tabs.size - 1)
+                                onDestinationSelected(tabs[clickedIndex].first)
+                            }
+                        }
+                    }
+                    .pointerInput(tabWidthPx, tabs.size) {
                         detectHorizontalDragGestures(
                             onDragStart = {
                                 isDragging = true
@@ -5236,32 +5270,17 @@ private fun DesktopFloatingNavigation(
                     },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                tabs.forEachIndexed { index, (item, iconAndLabel) ->
+                tabs.forEachIndexed { index, (_, iconAndLabel) ->
                     val isSelected = index == selectedIndex
-                    val interaction = remember { MutableInteractionSource() }
-                    val isPressed by interaction.collectIsPressedAsState()
-                    val scale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.90f else 1.0f,
-                        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
-                        label = "tabPressScale",
-                    )
-
                     val contentTint by animateColorAsState(
-                        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.55f),
+                        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
                         label = "tabContentTint",
                     )
 
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight()
-                            .scale(scale)
-                            .clip(pillShape)
-                            .clickable(
-                                interactionSource = interaction,
-                                indication = null,
-                                onClick = { onDestinationSelected(item) },
-                            ),
+                            .fillMaxHeight(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
@@ -5276,8 +5295,8 @@ private fun DesktopFloatingNavigation(
                             text = iconAndLabel.second,
                             color = contentTint,
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                             ),
                         )
                     }
@@ -5305,49 +5324,63 @@ private fun DesktopCompactPlayerPill(
         label = "pillScale",
     )
 
+    val haze = LocalDesktopHaze.current
+    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+
     Box(
         modifier = Modifier
             .widthIn(max = 440.dp)
             .fillMaxWidth()
             .scale(pillScale)
             .shadow(
-                elevation = 22.dp,
+                elevation = 20.dp,
                 shape = shape,
-                ambientColor = Color.Black.copy(alpha = 0.5f),
-                spotColor = Color.Black.copy(alpha = 0.75f),
+                ambientColor = Color.Black.copy(alpha = 0.45f),
+                spotColor = Color.Black.copy(alpha = 0.65f),
             )
             .clip(shape)
+            .then(
+                if (haze != null && !reduceDynamicBlur) {
+                    Modifier.hazeEffect(state = haze) {
+                        blurEnabled = true
+                        blurRadius = 26.dp
+                        noiseFactor = 0.04f
+                        tints = listOf(HazeTint(Color(0x3514141E)))
+                    }
+                } else {
+                    Modifier.background(Color(0x751E1E28))
+                },
+            )
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color.White.copy(alpha = 0.20f),
-                        Color.White.copy(alpha = 0.08f),
-                        Color(0x3514141E),
+                        Color.White.copy(alpha = 0.14f),
+                        Color.White.copy(alpha = 0.03f),
+                        Color(0x18000000),
                     ),
                 ),
             )
             .border(
-                width = 1.dp,
-                brush = Brush.linearGradient(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
                     listOf(
-                        Color.White.copy(alpha = 0.55f),
-                        Color.White.copy(alpha = 0.12f),
-                        Color.White.copy(alpha = 0.30f),
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f),
                     ),
                 ),
                 shape = shape,
             )
             .drawBehind {
-                // Top specular shimmer for Apple Liquid Glass depth
-                drawRect(
+                drawRoundRect(
                     brush = Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.22f),
+                            Color.White.copy(alpha = 0.28f),
                             Color.Transparent,
                         ),
                         startY = 0f,
-                        endY = size.height * 0.55f,
+                        endY = size.height * 0.45f,
                     ),
+                    cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
                 )
             }
             .clickable(
