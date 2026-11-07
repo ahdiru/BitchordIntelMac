@@ -6,7 +6,10 @@ import com.music.bitchord.ui.components.ShelfRowChrome
 import com.music.bitchord.ui.components.ShelfRow
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.ui.input.pointer.isBackPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -489,7 +492,7 @@ private enum class DesktopDestination(val id: String, val label: String) {
     SETTINGS("settings", "Settings"),
 }
 
-private enum class DesktopRepeatMode {
+internal enum class DesktopRepeatMode {
     OFF,
     ALL,
     ONE,
@@ -3198,6 +3201,10 @@ fun BitChordDesktopApp() {
                             windowActions?.close?.invoke()
                             true
                         }
+                        (event.isMetaPressed || event.isCtrlPressed) && event.isShiftPressed && event.key == Key.M -> {
+                            windowActions?.toggleMiniPlayer?.invoke()
+                            true
+                        }
                         DesktopPlatform.isMac && event.isMetaPressed && event.key == Key.M -> {
                             windowActions?.minimize?.invoke()
                             true
@@ -3337,6 +3344,33 @@ fun BitChordDesktopApp() {
                             )
                         }
                     }
+                },
+                miniPlayer = {
+                    DesktopAppleMiniPlayer(
+                        song = selectedSong,
+                        isPlaying = playback.isPlaying,
+                        positionMs = playerPosition.positionMs,
+                        durationMs = playback.durationMs,
+                        shuffle = shuffle,
+                        repeatMode = repeatMode,
+                        volume = volume,
+                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                        onNext = ::playNext,
+                        onPrevious = ::playPrevious,
+                        onSeek = ::seekPlayer,
+                        onToggleShuffle = { setShuffle(!shuffle) },
+                        onToggleRepeat = {
+                            repeatMode = repeatMode.next()
+                            persistence.saveString("repeat_mode", repeatMode.name)
+                        },
+                        onVolumeChange = {
+                            volume = it
+                            persistence.saveString("volume", it.toString())
+                        },
+                        onRestoreFullWindow = { windowActions?.toggleMiniPlayer?.invoke() },
+                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
+                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                    )
                 },
                 overlay = {
                     DesktopPlayerSheet(
@@ -4641,6 +4675,18 @@ private fun DesktopTopBar(
                             modifier = Modifier.size(19.dp),
                         )
                     }
+                    val windowActions = LocalDesktopWindowActions.current
+                    DesktopToolbarButton(
+                        onClick = { windowActions?.toggleMiniPlayer?.invoke() },
+                        size = 32.dp,
+                    ) {
+                        Icon(
+                            Icons.Rounded.OpenInFull,
+                            "MiniPlayer",
+                            tint = DesktopSecondary,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
                     DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
                 }
             }
@@ -4995,7 +5041,7 @@ private fun DesktopBottomChrome(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (compact && song != null) {
-            DesktopMiniPlayer(
+            DesktopCompactPlayerPill(
                 song = song,
                 isPlaying = isPlaying,
                 onExpand = onExpand,
@@ -5056,7 +5102,7 @@ private fun DesktopFloatingNavigation(
 }
 
 @Composable
-private fun DesktopMiniPlayer(
+private fun DesktopCompactPlayerPill(
     song: Song,
     isPlaying: Boolean,
     onExpand: () -> Unit,
@@ -5169,6 +5215,7 @@ private fun DesktopFrame(
     /** The column on the far side of the page — the lyrics or the queue, when one is open. */
     trailing: @Composable () -> Unit = {},
     overlay: @Composable () -> Unit = {},
+    miniPlayer: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     // Held out here rather than inside the constraints box.
@@ -5182,74 +5229,81 @@ private fun DesktopFrame(
     val materialBehindApp = glass && appBackground
     val maximized by DesktopWindowMode.maximized.collectAsState()
     val roundCorners = DesktopPlatform.isMac && !maximized
+    val miniPlayerActive by DesktopWindowMode.miniPlayer.collectAsState()
+
     CompositionLocalProvider(LocalDesktopHaze provides haze) {
         Box(
             modifier
                 .fillMaxSize()
-                .then(if (roundCorners) Modifier.clip(RoundedCornerShape(10.dp)) else Modifier)
+                .then(if (roundCorners) Modifier.clip(RoundedCornerShape(12.dp)) else Modifier)
                 .then(if (glass) Modifier else Modifier.background(containerColor)),
         ) {
-            // Both sources of the same state: the chrome blurs the backdrop behind it, and the
-            // floating bottom bar blurs the page scrolling under it.
-            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
-            Column(Modifier.fillMaxSize()) {
-                // Above everything, and outside the box the rest of the window is drawn in, because
-                // that is what a title bar is.
-                DesktopTitleBar()
-                Box(Modifier.fillMaxWidth().weight(1f)) {
-                    BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val compact = maxWidth < 980.dp
-                        // The sidebar runs the full height of the window, its head the window's
-                        // caption; the player's bar and the page share the column beside it.
-                        Row(Modifier.fillMaxSize()) {
-                            if (!compact) sidebar()
-                            Column(Modifier.weight(1f).fillMaxHeight()) {
-                            topBar(compact)
-                            Row(Modifier.fillMaxWidth().weight(1f)) {
-                                Box(
-                                    Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
-                                ) {
-                                    Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                                        if (glass) backdrop(materialBehindApp)
-                                        content(
-                                            PaddingValues(
-                                                start = 0.dp,
-                                                end = 0.dp,
-                                                // Room for the bar that floats over this, so the
-                                                // last row can still be scrolled clear of it.
-                                                bottom = if (compact) 128.dp else 16.dp,
-                                            ),
-                                        )
-                                    }
-                                    if (compact) {
-                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val isCompact = maxWidth < 980.dp
+                val isMini = (maxWidth < 480.dp || miniPlayerActive) && miniPlayer != null
+                if (isMini) {
+                    miniPlayer()
+                } else {
+                    // Both sources of the same state: the chrome blurs the backdrop behind it, and the
+                    // floating bottom bar blurs the page scrolling under it.
+                    if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
+                    Column(Modifier.fillMaxSize()) {
+                        // Above everything, and outside the box the rest of the window is drawn in, because
+                        // that is what a title bar is.
+                        DesktopTitleBar()
+                        Box(Modifier.fillMaxWidth().weight(1f)) {
+                            // The sidebar runs the full height of the window, its head the window's
+                            // caption; the player's bar and the page share the column beside it.
+                            Row(Modifier.fillMaxSize()) {
+                                if (!isCompact) sidebar()
+                                Column(Modifier.weight(1f).fillMaxHeight()) {
+                                    topBar(isCompact)
+                                    Row(Modifier.fillMaxWidth().weight(1f)) {
+                                        Box(
+                                            Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .then(
+                                                    if (glass && !materialBehindApp) {
+                                                        Modifier.background(containerColor)
+                                                    } else {
+                                                        Modifier
+                                                    },
+                                                ),
+                                        ) {
+                                            Box(Modifier.fillMaxSize().hazeSource(haze)) {
+                                                if (glass) backdrop(materialBehindApp)
+                                                content(
+                                                    PaddingValues(
+                                                        start = 0.dp,
+                                                        end = 0.dp,
+                                                        // Room for the bar that floats over this, so the
+                                                        // last row can still be scrolled clear of it.
+                                                        bottom = if (isCompact) 128.dp else 16.dp,
+                                                    ),
+                                                )
+                                            }
+                                            if (isCompact) {
+                                                Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
+                                            }
+                                        }
+                                        Box(
+                                            Modifier
+                                                .fillMaxHeight()
+                                                .then(
+                                                    if (glass && !materialBehindApp) {
+                                                        Modifier.background(containerColor)
+                                                    } else {
+                                                        Modifier
+                                                    },
+                                                ),
+                                        ) { trailing() }
                                     }
                                 }
-                                Box(
-                                    Modifier
-                                        .fillMaxHeight()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
-                                ) { trailing() }
                             }
-                            }
+                            overlay()
                         }
                     }
-                    overlay()
                 }
             }
         }

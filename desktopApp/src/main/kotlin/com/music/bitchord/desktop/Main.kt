@@ -146,6 +146,10 @@ private fun desktopMain() = application {
                 DesktopWindowBackdrop.apply()
             }
         }
+        val alwaysOnTop by DesktopWindowMode.alwaysOnTop.collectAsState()
+        LaunchedEffect(alwaysOnTop) {
+            composeWindow.isAlwaysOnTop = alwaysOnTop
+        }
         val actions = remember {
             DesktopWindowActions(
                 minimize = {
@@ -174,6 +178,8 @@ private fun desktopMain() = application {
                 // The same door the system's close button went through, so the tray keeps the
                 // process alive exactly as it did before.
                 close = { if (DesktopWindowVisibility.onCloseRequest()) exitApplication() },
+                toggleMiniPlayer = { DesktopWindowMode.toggleMiniPlayer(state) },
+                toggleAlwaysOnTop = { DesktopWindowMode.toggleAlwaysOnTop() },
             )
         }
         CompositionLocalProvider(
@@ -185,5 +191,5 @@ private fun desktopMain() = application {
     }
 }
 
-private const val MIN_WINDOW_WIDTH_DP = 900.0
-private const val MIN_WINDOW_HEIGHT_DP = 600.0
+private const val MIN_WINDOW_WIDTH_DP = 320.0
+private const val MIN_WINDOW_HEIGHT_DP = 320.0

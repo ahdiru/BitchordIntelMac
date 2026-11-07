@@ -1,6 +1,10 @@
 package com.music.bitchord.desktop
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -10,6 +14,11 @@ internal object DesktopWindowMode {
     private val _placement = MutableStateFlow(WindowPlacement.Floating)
     private val _fullScreen = MutableStateFlow(false)
     private val _maximized = MutableStateFlow(false)
+    private val _miniPlayer = MutableStateFlow(false)
+    private val _alwaysOnTop = MutableStateFlow(false)
+
+    private var savedWidth: Dp = 1220.dp
+    private var savedHeight: Dp = 780.dp
 
     /** What the window's own `placement` is driven from. */
     val placement: StateFlow<WindowPlacement> = _placement
@@ -19,6 +28,48 @@ internal object DesktopWindowMode {
 
     /** Whether the window is maximized, for the caption button's own glyph. */
     val maximized: StateFlow<Boolean> = _maximized
+
+    /** Whether the Apple Music-style compact MiniPlayer mode is active. */
+    val miniPlayer: StateFlow<Boolean> = _miniPlayer
+
+    /** Whether the window is pinned always on top (floats above other windows). */
+    val alwaysOnTop: StateFlow<Boolean> = _alwaysOnTop
+
+    fun toggleAlwaysOnTop() {
+        _alwaysOnTop.value = !_alwaysOnTop.value
+    }
+
+    fun setAlwaysOnTop(on: Boolean) {
+        _alwaysOnTop.value = on
+    }
+
+    fun setMiniPlayer(on: Boolean, state: WindowState? = null) {
+        if (_miniPlayer.value == on) return
+        _miniPlayer.value = on
+        if (on) {
+            _fullScreen.value = false
+            _placement.value = WindowPlacement.Floating
+            _maximized.value = false
+            if (state != null) {
+                if (state.size.width >= 500.dp) savedWidth = state.size.width
+                if (state.size.height >= 500.dp) savedHeight = state.size.height
+                state.size = DpSize(340.dp, 360.dp)
+            }
+            _alwaysOnTop.value = true
+        } else {
+            if (state != null) {
+                state.size = DpSize(
+                    if (savedWidth >= 500.dp) savedWidth else 1220.dp,
+                    if (savedHeight >= 500.dp) savedHeight else 780.dp,
+                )
+            }
+            _alwaysOnTop.value = false
+        }
+    }
+
+    fun toggleMiniPlayer(state: WindowState? = null) {
+        setMiniPlayer(!_miniPlayer.value, state)
+    }
 
     /**
      * The placement the player's full-screen button asks for.

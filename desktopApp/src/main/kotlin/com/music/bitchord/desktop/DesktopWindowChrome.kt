@@ -81,6 +81,8 @@ internal class DesktopWindowActions(
     val minimize: () -> Unit,
     val toggleMaximize: () -> Unit,
     val close: () -> Unit,
+    val toggleMiniPlayer: (() -> Unit)? = null,
+    val toggleAlwaysOnTop: (() -> Unit)? = null,
 )
 
 internal val LocalDesktopWindowActions = staticCompositionLocalOf<DesktopWindowActions?> { null }

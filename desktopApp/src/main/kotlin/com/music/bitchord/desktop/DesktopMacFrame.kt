@@ -308,7 +308,7 @@ internal object DesktopMacFrame {
         val selLayer = o.sel_registerName("layer")
         val layer = send.invokePointer(arrayOf(view, selLayer)) ?: return
         val selSetCornerRadius = o.sel_registerName("setCornerRadius:")
-        send.invoke(arrayOf(layer, selSetCornerRadius, if (maximized) 0.0 else 10.0))
+        send.invoke(arrayOf(layer, selSetCornerRadius, if (maximized) 0.0 else 12.0))
     }
 
     /**
@@ -485,7 +485,7 @@ internal object DesktopMacFrame {
         if (layer != null && layer != Pointer.NULL) {
             val selSetCornerRadius = o.sel_registerName("setCornerRadius:")
             val selSetMasksToBounds = o.sel_registerName("setMasksToBounds:")
-            val radius = if (DesktopWindowMode.maximized.value) 0.0 else 10.0
+            val radius = if (DesktopWindowMode.maximized.value) 0.0 else 12.0
             send.invoke(arrayOf(layer, selSetCornerRadius, radius))
             send.invoke(arrayOf(layer, selSetMasksToBounds, true))
         }
