@@ -4,17 +4,18 @@
 
 # BitChord for Apple
 
-**An open-source, native music client for Mac.**<br>
+**An open-source, native music client for Mac, iPhone and iPad.**<br>
 YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 
 <br>
 
 [![Release](https://img.shields.io/github/v/release/fumakill4/BitChord?style=for-the-badge&label=release&color=2F81F7)](https://github.com/fumakill4/BitChord/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-E8743B?style=for-the-badge)](LICENSE)
-[![Platforms](https://img.shields.io/badge/macOS_14+_·_Apple_Silicon-F5263F?style=for-the-badge)](#download)
+[![Platforms](https://img.shields.io/badge/macOS_14+_·_iOS_17+-F5263F?style=for-the-badge)](#download)
 
 [![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin_Multiplatform-7F52FF?logo=kotlin&logoColor=white)](shared)
 [![Compose Multiplatform](https://img.shields.io/badge/Compose_Multiplatform-4285F4?logo=jetpackcompose&logoColor=white)](desktopApp)
+[![SwiftUI](https://img.shields.io/badge/SwiftUI-F05138?logo=swift&logoColor=white)](#download)
 [![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-555555?logo=apple&logoColor=white)](#download)
 
 <br>
@@ -23,12 +24,12 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 
 <br>
 
-<img src="Banner.png" alt="BitChord on Mac" width="100%">
+<img src="Banner.png" alt="BitChord on Mac and iOS" width="100%">
 
 </div>
 
 > [!IMPORTANT]
-> This is a dedicated macOS Apple Silicon (arm64) release fork of [BitChord](https://github.com/kushagrasinghx/BitChord) created by [Kushagra Singh](https://github.com/kushagrasinghx). It is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
+> This is a dedicated Apple platform (macOS Apple Silicon & iOS) release fork of [BitChord](https://github.com/kushagrasinghx/BitChord) created by [Kushagra Singh](https://github.com/kushagrasinghx). It is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
 
 ---
 
@@ -36,6 +37,7 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 
 <div align="center">
 
+### 💻 macOS (Apple Silicon)
 <a href="https://github.com/fumakill4/BitChord/releases/latest">
   <img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/apple/cozy.svg" alt="Download for macOS" height="60">
 </a>
@@ -45,13 +47,19 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 **[Download BitChord-1.9.1.dmg (Latest Apple Silicon Release)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-1.9.1.dmg)**  
 <sub>Or get the previous build: **[BitChord-1.8.29.dmg](https://github.com/fumakill4/BitChord/releases/download/v1.8.29/BitChord-1.8.29.dmg)**</sub>
 
+<br/>
+
+### 📱 iPhone & iPad (iOS 17+)
+**[Download BitChord-iOS-LiquidGlass.ipa (Liquid Glass Edition)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-iOS-LiquidGlass.ipa)**  
+<sub>Alternative build: **[BitChord-1.0.4-build13-iOS-unsigned.ipa](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-1.0.4-build13-iOS-unsigned.ipa)**</sub>
+
 </div>
 
 ---
 
 ## <a id="install"></a>Install
 
-### Mac (Apple Silicon)
+### 💻 Mac (Apple Silicon)
 
 1. Download **`BitChord-1.9.1.dmg`** from the [Releases](https://github.com/fumakill4/BitChord/releases) page.
 2. Open the `.dmg` file and drag **BitChord.app** into your **Applications** folder.
@@ -61,6 +69,16 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
    xattr -cr /Applications/BitChord.app
    ```
    Or right-click (Control-click) `BitChord.app` in Finder and select **Open**.
+
+### 📱 iPhone & iPad (Sideloading)
+
+1. Download **`BitChord-iOS-LiquidGlass.ipa`** from the [Releases](https://github.com/fumakill4/BitChord/releases) page.
+2. Sideload it using your preferred sideloading tool:
+   - **AltStore / SideStore**: Open the IPA in the app and sign with your Apple ID.
+   - **Sideloadly**: Connect your device, drag the IPA into Sideloadly, and click Start.
+   - **TrollStore** (if supported on your iOS version): Install directly without revokes.
+   - **Scarlet**: Direct on-device installation.
+3. If prompted by iOS, go to **Settings → General → VPN & Device Management** and trust your developer certificate.
 
 ---
 
