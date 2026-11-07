@@ -1,9 +1,31 @@
 package com.music.bitchord.desktop
 
+// This App was build by Chris Tambayong - Fumakill4
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.focusable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import kotlinx.coroutines.delay
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +34,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,8 +55,8 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -41,6 +64,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +79,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,19 +91,12 @@ import androidx.compose.ui.unit.sp
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.ui.icons.BitChordIcons
 import com.music.bitchord.ui.player.ThinSlider
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.hazeEffect
 
-/**
- * Pixel-perfect Apple Music MiniPlayer replica for macOS Desktop.
- *
- * Exact Apple Music MiniPlayer Architecture (matching video reference):
- *   1. Top Bar: Traffic lights clearance (left) | Return to Full Window button | Volume slider (right)
- *   2. Main Player Body:
- *      - Full Artwork with subtle rounded corners & ambient drop shadow
- *      - Metadata row: Title + Artist (left) | ♡ Favorite + ••• More options (right)
- *      - Scrubber: Hairline slider with elapsed & remaining timestamps
- *      - Playback controls: Shuffle | Skip-Back | Play/Pause | Skip-Next | Repeat
- *      - Bottom-Right Utility: Lyrics (💬) and Queue (📑) toggle buttons
- */
+/** A compact, full-artwork player with a frosted control deck and native window drag area. */
 @Composable
 internal fun DesktopAppleMiniPlayer(
     song: Song?,
@@ -100,355 +122,192 @@ internal fun DesktopAppleMiniPlayer(
     isQueueActive: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF1E1E26),
-                        Color(0xFF121218),
-                    ),
-                ),
-            ),
+    val haze = remember { HazeState() }
+    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    val reduceMotion by DesktopAppearanceSettings.reduceAnimation.collectAsState()
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    val inputMode = LocalInputModeManager.current
+    var keyboardControls by remember { mutableStateOf(inputMode.inputMode == InputMode.Keyboard) }
+    var interacting by remember { mutableStateOf(false) }
+    var chromeVisible by remember { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    var moreMenuOpen by remember { mutableStateOf(false) }
+    var seekingFraction by remember(song?.videoId) { mutableStateOf<Float?>(null) }
+    LaunchedEffect(hovered, keyboardControls, interacting, moreMenuOpen, song == null) {
+        if (hovered || keyboardControls || interacting || moreMenuOpen || song == null) {
+            chromeVisible = true
+        } else {
+            delay(180)
+            chromeVisible = false
+        }
+    }
+    Box(
+        modifier.fillMaxSize().background(Color(0xFF242429))
+            .hoverable(hover)
+            .semantics {
+                contentDescription = "MiniPlayer"
+                customActions = listOf(CustomAccessibilityAction("Show playback controls") {
+                    keyboardControls = true
+                    true
+                })
+            }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    val revealing = !chromeVisible
+                    keyboardControls = true
+                    revealing && event.key == Key.Tab
+                } else false
+            }
+            .onFocusChanged { if (!it.hasFocus) keyboardControls = false }
+            .focusRequester(focus)
+            .focusable()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Final)
+                        if (event.type == PointerEventType.Enter || event.type == PointerEventType.Move) {
+                            keyboardControls = false
+                        }
+                        interacting = event.changes.any { it.pressed }
+                    }
+                }
+            },
     ) {
-        // ── 1. Top Bar: Traffic Lights clearance + Expand + Volume ───────────
-        DesktopTitleBarDragArea(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(38.dp)
-                .padding(horizontal = 10.dp),
+        Box(Modifier.fillMaxSize().hazeSource(haze)) {
+            DesktopArtwork(url = song?.thumbnailUrl, modifier = Modifier.fillMaxSize(), px = 800)
+            if (song == null) {
+                Icon(BitChordIcons.MusicNote, null, tint = Color.White.copy(alpha = .28f),
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp).size(72.dp))
+            }
+        }
+        // The entire control deck fades away after the pointer leaves, restoring the full sleeve.
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn(tween(if (reduceMotion) 80 else 140)),
+            exit = fadeOut(tween(if (reduceMotion) 80 else 240)),
+            modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                // Left: Traffic light clearance on macOS + Return/Expand button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    if (DesktopPlatform.isMac) {
-                        Spacer(Modifier.width(72.dp))
-                    }
-
-                    // Return to full window button (identical to Apple Music)
-                    IconButton(
-                        onClick = onRestoreFullWindow,
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f)),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.OpenInFull,
-                            contentDescription = "Return to full window",
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(13.dp),
-                        )
-                    }
-                }
-
-                // Right: Volume Slider (Apple Music places volume in the top bar of MiniPlayer)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.VolumeDown,
-                        contentDescription = "Volume down",
-                        tint = Color.White.copy(alpha = 0.50f),
-                        modifier = Modifier.size(14.dp),
-                    )
-
-                    var localVol by remember(volume) { mutableFloatStateOf(volume) }
-                    ThinSlider(
-                        value = localVol.coerceIn(0f, 1f),
-                        onValueChange = {
-                            localVol = it
-                            onVolumeChange(it)
-                        },
-                        idleHeight = 3.dp,
-                        activeHeight = 6.dp,
-                        activeColor = Color.White.copy(alpha = 0.85f),
-                        inactiveColor = Color.White.copy(alpha = 0.20f),
-                        modifier = Modifier.width(70.dp),
-                    )
-
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
-                        contentDescription = "Volume up",
-                        tint = Color.White.copy(alpha = 0.50f),
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
-            }
-        }
-
-        // ── 2. Album Artwork ──────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 2.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            val artShape = RoundedCornerShape(10.dp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .shadow(
-                        elevation = 16.dp,
-                        shape = artShape,
-                        ambientColor = Color.Black.copy(alpha = 0.5f),
-                        spotColor = Color.Black.copy(alpha = 0.8f),
-                    )
-                    .clip(artShape)
-                    .border(0.5.dp, Color.White.copy(alpha = 0.20f), artShape),
-            ) {
-                DesktopArtwork(
-                    url = song?.thumbnailUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    px = 600,
-                )
-            }
-        }
-
-        // ── 3. Metadata Row: Title + Artist (left) | Heart + More (right) ─────
-        var moreMenuOpen by remember { mutableStateOf(false) }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = song?.title ?: "Not Playing",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                    ),
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = song?.artist ?: "—",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    color = Color.White.copy(alpha = 0.55f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            // Favorite / Heart button
-            if (onToggleLike != null) {
-                IconButton(
-                    onClick = onToggleLike,
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        imageVector = if (isLiked) BitChordIcons.HeartFilled else BitChordIcons.Heart,
-                        contentDescription = if (isLiked) "Unlike" else "Like",
-                        tint = if (isLiked) DesktopAccent else Color.White.copy(alpha = 0.65f),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-
-            // More Options (•••) button
-            Box {
-                IconButton(
-                    onClick = { if (song != null) moreMenuOpen = true },
-                    modifier = Modifier.size(32.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreHoriz,
-                        contentDescription = "More",
-                        tint = Color.White.copy(alpha = 0.65f),
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                DropdownMenu(
-                    expanded = moreMenuOpen,
-                    onDismissRequest = { moreMenuOpen = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Restore full window") },
-                        onClick = {
-                            moreMenuOpen = false
-                            onRestoreFullWindow()
-                        },
-                    )
-                }
-            }
-        }
-
-        // ── 4. Scrubber ───────────────────────────────────────────────────────
-        var seekingFraction by remember { mutableStateOf<Float?>(null) }
-        val currentProgress = when {
-            durationMs <= 0L -> 0f
-            seekingFraction != null -> seekingFraction!!
-            else -> (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-        }
-
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp),
+            Modifier.fillMaxWidth()
+                .then(if (reduceBlur) Modifier.background(Color(0xFF303035)) else Modifier.hazeEffect(haze) {
+                    blurRadius = 20.dp
+                    mask = Brush.verticalGradient(0f to Color.Transparent, .18f to Color.Black, 1f to Color.Black)
+                    noiseFactor = .015f
+                    tints = listOf(HazeTint(Color(0x30303035)))
+                })
+                .background(Brush.verticalGradient(
+                    0f to Color.Transparent,
+                    .12f to Color.Black.copy(alpha = MINI_METADATA_VEIL),
+                    1f to Color.Black.copy(alpha = MINI_FOOTER_VEIL),
+                ))
+                .padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 12.dp),
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(song?.title ?: "Not Playing", color = Color.White,
+                        fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(2.dp))
+                    Text(song?.artist ?: "—", color = Color.White.copy(alpha = MINI_METADATA_ALPHA),
+                        fontSize = 13.sp, lineHeight = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (onToggleLike != null && song != null) {
+                    IconButton(onClick = onToggleLike, modifier = Modifier.size(28.dp)) {
+                        Icon(if (isLiked) BitChordIcons.HeartFilled else BitChordIcons.Heart,
+                            if (isLiked) "Unlike" else "Like", tint = Color.White,
+                            modifier = Modifier.size(15.dp))
+                    }
+                }
+                Box {
+                    IconButton(onClick = { moreMenuOpen = true }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Rounded.MoreHoriz, "More", tint = Color.White, modifier = Modifier.size(17.dp))
+                    }
+                    DropdownMenu(expanded = moreMenuOpen, onDismissRequest = { moreMenuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Return to full window") }, onClick = {
+                            moreMenuOpen = false; onRestoreFullWindow()
+                        })
+                        if (song != null && onOpenLyrics != null) DropdownMenuItem(text = { Text("Show lyrics") }, onClick = {
+                            moreMenuOpen = false; onOpenLyrics()
+                        })
+                        if (song != null && onOpenQueue != null) DropdownMenuItem(text = { Text("Show queue") }, onClick = {
+                            moreMenuOpen = false; onOpenQueue()
+                        })
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            val progress = seekingFraction ?: if (durationMs > 0L) positionMs.toFloat() / durationMs else 0f
             ThinSlider(
-                value = currentProgress,
+                value = progress.coerceIn(0f, 1f),
                 onValueChange = { seekingFraction = it },
                 onValueChangeFinished = {
-                    seekingFraction?.let { frac -> onSeek((frac * durationMs).toLong()) }
+                    if (durationMs > 0L) seekingFraction?.let { onSeek((it * durationMs).toLong()) }
                     seekingFraction = null
                 },
-                idleHeight = 3.dp,
-                activeHeight = 6.dp,
-                activeColor = Color.White.copy(alpha = 0.90f),
-                inactiveColor = Color.White.copy(alpha = 0.20f),
-                modifier = Modifier.fillMaxWidth(),
+                idleHeight = 3.dp, activeHeight = 6.dp,
+                inactiveColor = Color.White.copy(alpha = .25f),
             )
-            Spacer(Modifier.height(3.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                val displayPos = seekingFraction?.let { (it * durationMs).toLong() } ?: positionMs
-                val remaining = (durationMs - displayPos).coerceAtLeast(0L)
-                Text(
-                    text = formatMiniTime(displayPos),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = Color.White.copy(alpha = 0.45f),
-                )
-                Text(
-                    text = if (durationMs > 0L) "-${formatMiniTime(remaining)}" else "--:--",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = Color.White.copy(alpha = 0.45f),
-                )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(formatMiniTime(seekingFraction?.let { (it * durationMs).toLong() } ?: positionMs),
+                    color = Color.White.copy(alpha = MINI_TIME_ALPHA), fontSize = 10.sp, lineHeight = 13.sp)
+                Text(if (durationMs > 0L) "-${formatMiniTime((durationMs - positionMs).coerceAtLeast(0L))}" else "--:--",
+                    color = Color.White.copy(alpha = MINI_TIME_ALPHA), fontSize = 10.sp, lineHeight = 13.sp)
             }
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        // ── 5. Controls Row: Shuffle | Prev | Play/Pause | Next | Repeat ──────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Shuffle
-            val shuffleActive = shuffle
-            MiniControlButton(
-                onClick = onToggleShuffle,
-                contentDescription = "Shuffle",
-                iconSize = 20.dp,
-                active = shuffleActive,
-            ) {
-                Icon(
-                    imageVector = BitChordIcons.Shuffle,
-                    contentDescription = null,
-                    tint = if (shuffleActive) DesktopAccent else Color.White.copy(alpha = 0.55f),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-
-            // Skip Previous (restart track if > 3s, otherwise prev)
-            SkipPreviousButton(
-                positionMs = positionMs,
-                onPrevious = onPrevious,
-                onRestart = { onSeek(0L) },
-            )
-
-            // Play / Pause — flat Apple icon with spring bounce
-            AppleMusicPlayPauseButton(
-                isPlaying = isPlaying,
-                onClick = onPlayPause,
-            )
-
-            // Skip Next
-            MiniControlButton(
-                onClick = onNext,
-                contentDescription = "Next",
-                iconSize = 24.dp,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.SkipNext,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.90f),
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-
-            // Repeat
-            val repeatActive = repeatMode != DesktopRepeatMode.OFF
-            MiniControlButton(
-                onClick = onToggleRepeat,
-                contentDescription = "Repeat: ${repeatMode.name}",
-                iconSize = 20.dp,
-                active = repeatActive,
-            ) {
-                Icon(
-                    imageVector = BitChordIcons.Repeat,
-                    contentDescription = null,
-                    tint = if (repeatActive) DesktopAccent else Color.White.copy(alpha = 0.55f),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-
-        Spacer(Modifier.height(4.dp))
-
-        // ── 6. Bottom Right Utilities: Lyrics (💬) & Queue (📑) ───────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onOpenLyrics != null) {
-                IconButton(
-                    onClick = onOpenLyrics,
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(if (isLyricsActive) DesktopAccent.copy(alpha = 0.22f) else Color.Transparent),
-                ) {
-                    Icon(
-                        imageVector = BitChordIcons.LyricsQuote,
-                        contentDescription = "Lyrics",
-                        tint = if (isLyricsActive) DesktopAccent else Color.White.copy(alpha = 0.65f),
-                        modifier = Modifier.size(16.dp),
-                    )
+            Spacer(Modifier.height(7.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                MiniControlButton(onClick = onToggleShuffle, contentDescription = "Shuffle", iconSize = 18.dp, active = shuffle) {
+                    Icon(BitChordIcons.Shuffle, "Shuffle", tint = Color.White.copy(alpha = if (shuffle) 1f else .60f), modifier = Modifier.size(18.dp))
+                }
+                SkipPreviousButton(positionMs = positionMs, onPrevious = onPrevious, onRestart = { onSeek(0L) })
+                AppleMusicPlayPauseButton(isPlaying = isPlaying, onClick = onPlayPause)
+                MiniControlButton(onClick = onNext, contentDescription = "Next", iconSize = 30.dp) {
+                    Icon(Icons.Rounded.FastForward, "Next", tint = Color.White, modifier = Modifier.size(30.dp))
+                }
+                MiniControlButton(onClick = onToggleRepeat, contentDescription = "Repeat: ${repeatMode.name}", iconSize = 18.dp,
+                    active = repeatMode != DesktopRepeatMode.OFF) {
+                    if (repeatMode == DesktopRepeatMode.ONE) Text("1", color = Color.White, fontSize = 16.sp)
+                    else Icon(BitChordIcons.Repeat, "Repeat", tint = Color.White.copy(alpha = if (repeatMode != DesktopRepeatMode.OFF) 1f else .60f), modifier = Modifier.size(18.dp))
                 }
             }
-
-            Spacer(Modifier.width(4.dp))
-
-            if (onOpenQueue != null) {
-                IconButton(
-                    onClick = onOpenQueue,
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(if (isQueueActive) DesktopAccent.copy(alpha = 0.22f) else Color.Transparent),
-                ) {
-                    Icon(
-                        imageVector = BitChordIcons.Queue,
-                        contentDescription = "Queue",
-                        tint = if (isQueueActive) DesktopAccent else Color.White.copy(alpha = 0.65f),
-                        modifier = Modifier.size(16.dp),
-                    )
+        }
+        }
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn(tween(if (reduceMotion) 80 else 140)),
+            exit = fadeOut(tween(if (reduceMotion) 80 else 240)),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+        DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(34.dp)) {
+            Row(Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Box(Modifier.size(20.dp).clip(RoundedCornerShape(50))
+                    .background(Color.Black.copy(alpha = .48f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null,
+                        role = Role.Button, onClick = onRestoreFullWindow), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.OpenInFull, "Return to full window", tint = Color.White, modifier = Modifier.size(13.dp))
+                }
+                Row(Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = .48f)).padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    if (song != null && onOpenLyrics != null) {
+                        IconButton(onClick = onOpenLyrics, modifier = Modifier.size(24.dp)) {
+                            Icon(BitChordIcons.LyricsQuote, "Show lyrics", tint = Color.White, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                    if (song != null && onOpenQueue != null) {
+                        IconButton(onClick = onOpenQueue, modifier = Modifier.size(24.dp)) {
+                            Icon(BitChordIcons.Queue, "Show queue", tint = Color.White, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                    ThinSlider(value = volume, onValueChange = onVolumeChange, modifier = Modifier.width(68.dp),
+                        idleHeight = 3.dp, activeHeight = 6.dp, glassThumb = true, accessibilityLabel = "Volume")
+                    Spacer(Modifier.width(5.dp))
+                    Icon(Icons.AutoMirrored.Rounded.VolumeUp, null, tint = Color.White, modifier = Modifier.size(14.dp))
                 }
             }
+        }
         }
     }
 }
@@ -463,6 +322,7 @@ private fun AppleMusicPlayPauseButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val reduceMotion by DesktopAppearanceSettings.reduceAnimation.collectAsState()
     val interaction = remember { MutableInteractionSource() }
     val isPressed by interaction.collectIsPressedAsState()
     val isHovered by interaction.collectIsHoveredAsState()
@@ -470,10 +330,10 @@ private fun AppleMusicPlayPauseButton(
     val scale by animateFloatAsState(
         targetValue = when {
             isPressed -> 0.88f
-            isHovered -> 1.08f
+            isHovered -> 1.04f
             else -> 1.0f
         },
-        animationSpec = spring(
+        animationSpec = if (reduceMotion) tween(0) else spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessHigh,
         ),
@@ -485,6 +345,7 @@ private fun AppleMusicPlayPauseButton(
             .size(44.dp)
             .scale(scale)
             .clickable(
+                role = Role.Button,
                 interactionSource = interaction,
                 indication = null,
                 onClick = onClick,
@@ -495,7 +356,7 @@ private fun AppleMusicPlayPauseButton(
             imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
             contentDescription = if (isPlaying) "Pause" else "Play",
             tint = Color.White,
-            modifier = Modifier.size(30.dp),
+            modifier = Modifier.size(40.dp),
         )
     }
 }
@@ -507,11 +368,12 @@ private fun SkipPreviousButton(
     onRestart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val reduceMotion by DesktopAppearanceSettings.reduceAnimation.collectAsState()
     val interaction = remember { MutableInteractionSource() }
     val isPressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.88f else 1.0f,
-        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
+        animationSpec = if (reduceMotion) tween(0) else spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
         label = "skipPrevScale",
     )
 
@@ -519,21 +381,16 @@ private fun SkipPreviousButton(
         modifier = modifier
             .size(40.dp)
             .scale(scale)
-            .pointerInput(positionMs) {
-                detectTapGestures(
-                    onDoubleTap = { onRestart() },
-                    onTap = {
-                        if (positionMs > 3_000L) onRestart() else onPrevious()
-                    },
-                )
+            .clickable(interactionSource = interaction, indication = null, role = Role.Button) {
+                if (positionMs > 3_000L) onRestart() else onPrevious()
             },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = Icons.Rounded.SkipPrevious,
+            imageVector = Icons.Rounded.FastRewind,
             contentDescription = "Previous",
             tint = Color.White.copy(alpha = 0.90f),
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(30.dp),
         )
     }
 }
@@ -547,11 +404,12 @@ private fun MiniControlButton(
     active: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    val reduceMotion by DesktopAppearanceSettings.reduceAnimation.collectAsState()
     val interaction = remember { MutableInteractionSource() }
     val isPressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.85f else 1.0f,
-        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
+        animationSpec = if (reduceMotion) tween(0) else spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
         label = "ctrlScale",
     )
 
@@ -560,6 +418,7 @@ private fun MiniControlButton(
             .size(iconSize + 16.dp)
             .scale(scale)
             .clickable(
+                role = Role.Button,
                 interactionSource = interaction,
                 indication = null,
                 onClick = onClick,
@@ -576,3 +435,9 @@ private fun formatMiniTime(ms: Long): String {
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
 }
+
+// These veils keep secondary text readable even over a white album cover.
+internal const val MINI_METADATA_VEIL = .60f
+internal const val MINI_FOOTER_VEIL = .72f
+internal const val MINI_METADATA_ALPHA = .85f
+internal const val MINI_TIME_ALPHA = .70f

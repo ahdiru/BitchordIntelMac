@@ -38,14 +38,14 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 <div align="center">
 
 ### 💻 macOS (Apple Silicon)
-<a href="https://github.com/fumakill4/BitChord/releases/latest">
+<a href="https://github.com/fumakill4/BitChord/releases/download/macos-v1.9.1.E4/BitChord-1.9.1.E4-macos-arm64.dmg">
   <img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/macos/cozy.svg" alt="Download for macOS" height="60">
 </a>
 
 <br/>
 
-**[Download BitChord-1.9.1.dmg (Latest Apple Silicon Release)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1/BitChord-1.9.1.dmg)**  
-<sub>Or get the previous build: **[BitChord-1.8.29.dmg](https://github.com/fumakill4/BitChord/releases/download/v1.8.29/BitChord-1.8.29.dmg)**</sub>
+**[Download BitChord-1.9.1.E4-macos-arm64.dmg (Latest Apple Silicon Release)](https://github.com/fumakill4/BitChord/releases/download/macos-v1.9.1.E4/BitChord-1.9.1.E4-macos-arm64.dmg)**<br>
+<sub>macOS Apple Silicon · Build 1.9.1.E4 · [Release notes](https://github.com/fumakill4/BitChord/releases/tag/macos-v1.9.1.E4)</sub>
 
 <br/>
 
@@ -79,7 +79,7 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 
 ### 💻 Mac (Apple Silicon)
 
-1. Download **`BitChord-1.9.1.dmg`** from the [Releases](https://github.com/fumakill4/BitChord/releases) page.
+1. Download **`BitChord-1.9.1.E4-macos-arm64.dmg`** from the [macOS release](https://github.com/fumakill4/BitChord/releases/tag/macos-v1.9.1.E4) page.
 2. Open the `.dmg` file and drag **BitChord.app** into your **Applications** folder.
 3. **Gatekeeper Notice:** Because this is an open-source build without an Apple Developer ID signature, Gatekeeper may display a prompt on the first launch (*"BitChord is from an unidentified developer"*).  
    You can easily open it by running this command in Terminal:

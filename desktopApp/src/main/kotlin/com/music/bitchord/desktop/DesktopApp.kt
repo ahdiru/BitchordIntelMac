@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+// This App was build by Chris Tambayong - Fumakill4
+
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.bitchord.ui.components.LocalShelfRowChrome
 import com.music.bitchord.ui.components.ShelfRowChrome
@@ -70,13 +72,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
@@ -2982,6 +2984,8 @@ fun BitChordDesktopApp() {
     // menu's rows say what is on screen. Not keyed to the track: the player's own
     // panel and translation state outlive a skip, so copies recreated per track
     // would contradict it until it next changed.
+    val playerLyricsToggle = remember { mutableStateOf(false) }
+    val playerLyricsShowing = remember { mutableStateOf(false) }
     val playerQueueToggle = remember { mutableStateOf(false) }
     val playerQueueShowing = remember { mutableStateOf(false) }
     val playerTranslateToggle = remember { mutableStateOf(false) }
@@ -3376,18 +3380,37 @@ fun BitChordDesktopApp() {
                         isLiked = selectedSong?.videoId in likedIds,
                         onToggleLike = { selectedSong?.let { toggleLike(it) } },
                         onRestoreFullWindow = { windowActions?.toggleMiniPlayer?.invoke() },
-                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
-                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
-                        isLyricsActive = overlays.sidePanel == DesktopSidePanel.LYRICS,
-                        isQueueActive = overlays.sidePanel == DesktopSidePanel.QUEUE,
+                        onOpenLyrics = {
+                            windowActions?.toggleMiniPlayer?.invoke()
+                            overlays.nowPlaying = selectedSong != null
+                            if (!playerLyricsShowing.value) playerLyricsToggle.value = true
+                        },
+                        onOpenQueue = {
+                            windowActions?.toggleMiniPlayer?.invoke()
+                            overlays.nowPlaying = selectedSong != null
+                            if (!playerQueueShowing.value) playerQueueToggle.value = true
+                        },
+                        isLyricsActive = playerLyricsShowing.value,
+                        isQueueActive = playerQueueShowing.value,
                     )
                 },
                 overlay = {
                     DesktopPlayerSheet(
                         visible = overlays.nowPlaying && selectedSong != null,
-                        onDismiss = {
-                            DesktopWindowMode.exit()
-                            overlays.nowPlaying = false
+                        chrome = {
+                            DesktopPlayerHeader(
+                                volume = volume,
+                                onVolumeChange = { volume = it; persistence.saveString("volume", it.toString()) },
+                                onClose = { DesktopWindowMode.exit(); overlays.nowPlaying = false },
+                                onMiniPlayer = { windowActions?.toggleMiniPlayer?.invoke() },
+                            )
+                            DesktopPlayerPanelButtons(
+                                lyrics = playerLyricsShowing.value,
+                                queue = playerQueueShowing.value,
+                                onLyrics = { playerLyricsToggle.value = true },
+                                onQueue = { playerQueueToggle.value = true },
+                                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                            )
                         },
                     ) { windowWidth, windowHeight ->
                         val current = selectedSong ?: return@DesktopPlayerSheet
@@ -3504,6 +3527,8 @@ fun BitChordDesktopApp() {
                             windowWidth = windowWidth,
                             windowHeight = windowHeight,
                             playerOverflowOpen = playerOverflowOpen,
+                            playerLyricsToggle = playerLyricsToggle,
+                            playerLyricsShowing = playerLyricsShowing,
                             playerQueueToggle = playerQueueToggle,
                             playerQueueShowing = playerQueueShowing,
                             playerMenuAnchor = playerMenuAnchor,
@@ -4658,6 +4683,8 @@ private fun DesktopTopBar(
                         onValueChange = onVolumeChange,
                         idleHeight = 4.dp,
                         activeHeight = 8.dp,
+                        glassThumb = true,
+                        accessibilityLabel = DesktopStrings["d_volume", "Volume"],
                         modifier = Modifier.width(78.dp),
                     )
                     Spacer(Modifier.width(5.dp))
@@ -5069,338 +5096,19 @@ private fun DesktopFloatingNavigation(
     destination: DesktopDestination,
     onDestinationSelected: (DesktopDestination) -> Unit,
 ) {
-    val tabs = remember {
-        listOf(
-            DesktopDestination.LISTEN_NOW to (BitChordIcons.Play to "Play"),
-            DesktopDestination.EXPLORE to (BitChordIcons.Explore to "Explore"),
-            DesktopDestination.LIBRARY to (BitChordIcons.Library to "Library"),
-            DesktopDestination.SEARCH to (BitChordIcons.Search to "Search"),
-        )
+    val destinations = remember {
+        listOf(DesktopDestination.LISTEN_NOW, DesktopDestination.EXPLORE,
+            DesktopDestination.LIBRARY, DesktopDestination.SEARCH)
     }
-    val selected = tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
-    val selectedIndex = tabs.indexOfFirst { it.first == selected }.coerceAtLeast(0)
-    val trackShape = RoundedCornerShape(percent = 50)
-    val bubbleShape = RoundedCornerShape(percent = 50)
-
-    val haze = LocalDesktopHaze.current
-    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
-
-    Box(
-        modifier = Modifier
-            .widthIn(max = 440.dp)
-            .fillMaxWidth()
-            .height(54.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        // 1. Frosted Liquid Glass Track Capsule (48dp height)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .shadow(
-                    elevation = 18.dp,
-                    shape = trackShape,
-                    ambientColor = Color.Black.copy(alpha = 0.45f),
-                    spotColor = Color.Black.copy(alpha = 0.65f),
-                )
-                .clip(trackShape)
-                .then(
-                    if (haze != null && !reduceDynamicBlur) {
-                        Modifier.hazeEffect(state = haze) {
-                            blurEnabled = true
-                            blurRadius = 26.dp
-                            noiseFactor = 0.04f
-                            tints = listOf(HazeTint(Color(0x3514141E)))
-                        }
-                    } else {
-                        Modifier.background(Color(0x751E1E28))
-                    },
-                )
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.14f),
-                            Color.White.copy(alpha = 0.03f),
-                            Color(0x18000000),
-                        ),
-                    ),
-                )
-                .border(
-                    width = 0.75.dp,
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.35f),
-                            Color.White.copy(alpha = 0.08f),
-                        ),
-                    ),
-                    shape = trackShape,
-                )
-                .drawBehind {
-                    drawRoundRect(
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.28f),
-                                Color.Transparent,
-                            ),
-                            startY = 0f,
-                            endY = size.height * 0.45f,
-                        ),
-                        cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
-                    )
-                },
-        )
-
-        // 2. Sliding Bubble Lens + Tab Items
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            val tabCount = tabs.size
-            val tabWidth = maxWidth / tabCount
-            val density = LocalDensity.current
-            val tabWidthPx = with(density) { tabWidth.toPx() }
-
-            var dragOffsetPx by remember { mutableFloatStateOf(0f) }
-            var isDragging by remember { mutableStateOf(false) }
-
-            val targetIndicatorIndex = if (isDragging && tabWidthPx > 0f) {
-                (selectedIndex + (dragOffsetPx / tabWidthPx)).coerceIn(0f, (tabs.size - 1).toFloat())
-            } else {
-                selectedIndex.toFloat()
-            }
-
-            // Real Apple Bouncy Spring Physics
-            val animatedIndex by animateFloatAsState(
-                targetValue = targetIndicatorIndex,
-                animationSpec = if (isDragging) {
-                    spring(dampingRatio = 1.0f, stiffness = Spring.StiffnessHigh)
-                } else {
-                    spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = 380f,
-                    )
-                },
-                label = "liquidGlassBubbleSpring",
-            )
-
-            // Overhanging Floating Bubble Lens (taller than track, with chromatic aberration prism rim)
-            val chromaticRimBrush = remember {
-                Brush.linearGradient(
-                    listOf(
-                        Color(0x9000E5FF), // Cyan chromatic fringe
-                        Color.White.copy(alpha = 0.90f),
-                        Color(0x90FF8A50), // Warm amber chromatic fringe
-                        Color.White.copy(alpha = 0.40f),
-                    ),
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .offset(x = tabWidth * animatedIndex - 2.dp)
-                    .width(tabWidth + 4.dp)
-                    .height(54.dp)
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = bubbleShape,
-                        ambientColor = Color.Black.copy(alpha = 0.40f),
-                        spotColor = Color.Black.copy(alpha = 0.60f),
-                    )
-                    .clip(bubbleShape)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.32f),
-                                Color.White.copy(alpha = 0.10f),
-                            ),
-                        ),
-                    )
-                    .border(
-                        width = 0.9.dp,
-                        brush = chromaticRimBrush,
-                        shape = bubbleShape,
-                    )
-                    .drawBehind {
-                        // Top and bottom specular glass highlights
-                        drawRoundRect(
-                            brush = Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.45f),
-                                    Color.Transparent,
-                                ),
-                                startY = 0f,
-                                endY = size.height * 0.45f,
-                            ),
-                            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
-                        )
-                        drawRoundRect(
-                            brush = Brush.verticalGradient(
-                                listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.20f),
-                                ),
-                                startY = size.height * 0.70f,
-                                endY = size.height,
-                            ),
-                            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f),
-                        )
-                    },
-            )
-
-            // Interactive Tab Items Layer (handles BOTH Tap & Drag without conflict)
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(tabWidthPx, tabs.size) {
-                        detectTapGestures { offset ->
-                            if (tabWidthPx > 0f) {
-                                val clickedIndex = (offset.x / tabWidthPx).toInt().coerceIn(0, tabs.size - 1)
-                                onDestinationSelected(tabs[clickedIndex].first)
-                            }
-                        }
-                    }
-                    .pointerInput(tabWidthPx, tabs.size) {
-                        detectHorizontalDragGestures(
-                            onDragStart = {
-                                isDragging = true
-                                dragOffsetPx = 0f
-                            },
-                            onHorizontalDrag = { _, dragAmount ->
-                                dragOffsetPx += dragAmount
-                            },
-                            onDragEnd = {
-                                if (tabWidthPx > 0f) {
-                                    val finalIndex = (selectedIndex + (dragOffsetPx / tabWidthPx))
-                                        .roundToInt()
-                                        .coerceIn(0, tabs.size - 1)
-                                    onDestinationSelected(tabs[finalIndex].first)
-                                }
-                                isDragging = false
-                                dragOffsetPx = 0f
-                            },
-                            onDragCancel = {
-                                isDragging = false
-                                dragOffsetPx = 0f
-                            },
-                        )
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                tabs.forEachIndexed { index, (_, iconAndLabel) ->
-                    val isSelected = index == selectedIndex
-                    val dist = kotlin.math.abs(index.toFloat() - animatedIndex)
-                    val inLens = (1.0f - dist.coerceIn(0f, 1f))
-                    // Real convex lens magnification: expands content under the glass lens
-                    val lensScale = 1.0f + 0.16f * inLens
-                    // Barrel distortion refraction translation: physical curve displacement under moving glass
-                    val refractionShiftX = if (dist in 0.05f..0.95f) {
-                        val sign = if (index.toFloat() > animatedIndex) 1f else -1f
-                        -kotlin.math.sin(dist * kotlin.math.PI.toFloat()) * sign * with(density) { 3.5.dp.toPx() }
-                    } else 0f
-
-                    val contentTint by animateColorAsState(
-                        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
-                        label = "tabContentTint",
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        // Chromatic aberration fringes when passing through the lens rim
-                        if (dist in 0.12f..0.88f) {
-                            Column(
-                                modifier = Modifier
-                                    .graphicsLayer {
-                                        scaleX = lensScale
-                                        scaleY = lensScale
-                                        translationX = refractionShiftX - with(density) { 1.2.dp.toPx() }
-                                        alpha = 0.35f
-                                    },
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Icon(
-                                    imageVector = iconAndLabel.first,
-                                    contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
-                                    modifier = Modifier.size(19.dp),
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    text = iconAndLabel.second,
-                                    color = Color(0xFF00E5FF),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Medium,
-                                    ),
-                                )
-                            }
-                            Column(
-                                modifier = Modifier
-                                    .graphicsLayer {
-                                        scaleX = lensScale
-                                        scaleY = lensScale
-                                        translationX = refractionShiftX + with(density) { 1.2.dp.toPx() }
-                                        alpha = 0.35f
-                                    },
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Icon(
-                                    imageVector = iconAndLabel.first,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF8A50),
-                                    modifier = Modifier.size(19.dp),
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    text = iconAndLabel.second,
-                                    color = Color(0xFFFF8A50),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Medium,
-                                    ),
-                                )
-                            }
-                        }
-
-                        // Main Content Layer (magnified and displaced under the lens)
-                        Column(
-                            modifier = Modifier
-                                .graphicsLayer {
-                                    scaleX = lensScale
-                                    scaleY = lensScale
-                                    translationX = refractionShiftX
-                                },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Icon(
-                                imageVector = iconAndLabel.first,
-                                contentDescription = iconAndLabel.second,
-                                tint = contentTint,
-                                modifier = Modifier.size(19.dp),
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = iconAndLabel.second,
-                                color = contentTint,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                                ),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+    val reduceBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    val reduceMotion by DesktopAppearanceSettings.reduceAnimation.collectAsState()
+    DesktopLiquidNavigation(
+        selectedIndex = destinations.indexOf(destination).takeIf { it >= 0 } ?: 2,
+        onSelected = { onDestinationSelected(destinations[it]) },
+        haze = LocalDesktopHaze.current,
+        reduceBlur = reduceBlur,
+        reduceMotion = reduceMotion,
+    )
 }
 
 @Composable
@@ -5440,12 +5148,12 @@ private fun DesktopCompactPlayerPill(
                 if (haze != null && !reduceDynamicBlur) {
                     Modifier.hazeEffect(state = haze) {
                         blurEnabled = true
-                        blurRadius = 26.dp
+                        blurRadius = 32.dp
                         noiseFactor = 0.04f
-                        tints = listOf(HazeTint(Color(0x3514141E)))
+                        tints = listOf(HazeTint(Color(0xE0121218)))
                     }
                 } else {
-                    Modifier.background(Color(0x751E1E28))
+                    Modifier.background(Color(0xE814141C))
                 },
             )
             .background(
@@ -5700,7 +5408,7 @@ private fun DesktopFrame(
         ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val isCompact = maxWidth < 980.dp
-                val isMini = (maxWidth < 480.dp || miniPlayerActive) && miniPlayer != null
+                val isMini = miniPlayerActive && miniPlayer != null
                 if (isMini) {
                     miniPlayer()
                 } else {
@@ -5739,7 +5447,7 @@ private fun DesktopFrame(
                                                         end = 0.dp,
                                                         // Room for the floating bottom bar only when compact.
                                                         // In wide desktop mode, topBar owns the controls.
-                                                        bottom = if (isCompact) 128.dp else 16.dp,
+                                                        bottom = if (isCompact) 144.dp else 16.dp,
                                                     ),
                                                 )
                                             }
@@ -7162,11 +6870,11 @@ private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
     Text(
         text = buildAnnotatedString {
             append("bitchord $version  ")
-            withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx/BitChord", linkStyles)) {
+            withLink(LinkAnnotation.Url("https://github.com/fumakill4/BitChord", linkStyles)) {
                 append("GitHub")
             }
             append("  ")
-            withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx", linkStyles)) {
+            withLink(LinkAnnotation.Url("https://github.com/fumakill4", linkStyles)) {
                 append("Developer")
             }
             append("  ")

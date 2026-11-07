@@ -37,6 +37,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -225,6 +226,8 @@ internal fun PlayerScrubber(
     Column(Modifier.fillMaxWidth()) {
         ThinSlider(
             value = shown,
+            idleHeight = 3.dp,
+            activeHeight = 7.dp,
             onValueChange = onScrub,
             onValueChangeFinished = onScrubFinished,
             loading = loading,
@@ -457,23 +460,39 @@ internal fun TransportRow(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     compact: Boolean = false,
+    shuffleEnabled: Boolean? = null,
+    onToggleShuffle: (() -> Unit)? = null,
+    repeatMode: Int? = null,
+    onCycleRepeat: (() -> Unit)? = null,
 ) {
-    val playSize = if (compact) 58.dp else 74.dp
-    val playTouch = if (compact) 76.dp else 92.dp
-    val skipSize = if (compact) 44.dp else PLAYER_SKIP_ICON_SIZE
+    val playSize = if (compact) 40.dp else 44.dp
+    val playTouch = 44.dp
+    val skipSize = 28.dp
     Row(
         modifier = Modifier.fillMaxWidth(),
         // SpaceAround, not SpaceEvenly: the outer margins take half a gap, so
-        // the three buttons spread a little further apart from each other.
+        // the buttons spread a little further apart from each other.
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (onToggleShuffle != null) {
+            BottomGlyph(
+                icon = BitChordIcons.Shuffle,
+                contentDescription = stringResource(
+                    if (shuffleEnabled == true) Res.string.shuffle_on else Res.string.shuffle_off,
+                ),
+                onClick = onToggleShuffle,
+                highlighted = shuffleEnabled == true,
+                iconSize = 18.dp,
+                highlightBackground = false,
+            )
+        }
         TransportGlyph(
             icon = Res.drawable.ic_player_previous,
             contentDescription = stringResource(Res.string.widget_previous),
             size = skipSize,
-            touchSize = PLAYER_SKIP_TOUCH_SIZE,
-            heightScale = PLAYER_SKIP_HEIGHT_SCALE,
+            touchSize = 44.dp,
+            heightScale = 1f,
             onClick = onPrevious,
             enabled = previousEnabled,
             haptic = Haptic.SkipPrevious,
@@ -485,7 +504,7 @@ internal fun TransportRow(
                 CircularProgressIndicator(
                     color = Color.White,
                     strokeWidth = 3.dp,
-                    modifier = Modifier.size(if (compact) 30.dp else 38.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         } else {
@@ -502,12 +521,27 @@ internal fun TransportRow(
             icon = Res.drawable.ic_player_next,
             contentDescription = stringResource(Res.string.widget_next),
             size = skipSize,
-            touchSize = PLAYER_SKIP_TOUCH_SIZE,
-            heightScale = PLAYER_SKIP_HEIGHT_SCALE,
+            touchSize = 44.dp,
+            heightScale = 1f,
             onClick = onNext,
             enabled = nextEnabled,
             haptic = Haptic.SkipNext,
         )
+        if (onCycleRepeat != null && repeatMode != null) {
+            BottomGlyph(
+                icon = if (repeatMode == RepeatModes.ONE) null else BitChordIcons.Repeat,
+                label = if (repeatMode == RepeatModes.ONE) "1" else null,
+                contentDescription = when (repeatMode) {
+                    RepeatModes.ONE -> stringResource(Res.string.repeat_one)
+                    RepeatModes.ALL -> stringResource(Res.string.repeat_all)
+                    else -> stringResource(Res.string.repeat_off)
+                },
+                onClick = onCycleRepeat,
+                highlighted = repeatMode != RepeatModes.OFF,
+                iconSize = 18.dp,
+                highlightBackground = false,
+            )
+        }
     }
 }
 
@@ -542,6 +576,8 @@ internal fun VolumeRow(
             onValueChangeFinished = onValueChangeFinished,
             idleHeight = 6.dp,
             activeHeight = 10.dp,
+            glassThumb = true,
+            accessibilityLabel = "Volume",
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(10.dp))
@@ -781,7 +817,7 @@ internal fun CircleGlyph(
     )
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(28.dp)
             .clip(CircleShape)
             .background(LocalPlayerTint.current.copy(alpha = discAlpha))
             .playerHoverDisc()
@@ -803,7 +839,7 @@ internal fun CircleGlyph(
                 imageVector = glyph,
                 contentDescription = contentDescription,
                 tint = LocalPlayerTint.current,
-                modifier = Modifier.size(19.dp),
+                modifier = Modifier.size(15.dp),
             )
         }
     }
@@ -827,6 +863,14 @@ private fun TransportGlyph(
     heightScale: Float = 1f,
 ) {
     val haptics = rememberHaptics()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val reduceMotion by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val pressScale by animateFloatAsState(
+        if (pressed) .85f else 1f,
+        animationSpec = if (reduceMotion) tween(0) else spring(dampingRatio = .66f, stiffness = 600f),
+        label = "desktopTransportPress",
+    )
     // Faded rather than hidden: the row keeps its shape at the ends of a queue.
     val alpha by animateFloatAsState(
         targetValue = if (enabled) 1f else 0.3f,
@@ -835,8 +879,9 @@ private fun TransportGlyph(
     Box(
         modifier = Modifier
             .size(touchSize)
+            .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
                 enabled = enabled,
             ) {
@@ -1224,6 +1269,9 @@ private fun BottomGlyph(
     contentDescription: String,
     onClick: () -> Unit,
     highlighted: Boolean = false,
+    iconSize: Dp = 26.dp,
+    vibrant: Boolean = false,
+    highlightBackground: Boolean = true,
     haptic: Haptic = Haptic.Tap,
     label: String? = null,
     /**
@@ -1236,6 +1284,9 @@ private fun BottomGlyph(
     tapWindowMs: Long = 0L,
 ) {
     val haptics = rememberHaptics()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+
     // Read only from the click handler, never during composition, so writing it
     // costs no recomposition. Starts a full window in the past so the first tap
     // is never the one that gets swallowed.
@@ -1243,12 +1294,13 @@ private fun BottomGlyph(
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
+            .graphicsLayer { scaleX = if (pressed) .92f else 1f; scaleY = scaleX }
             .clip(CircleShape)
             .background(
-                if (highlighted) LocalPlayerTint.current.copy(alpha = 0.20f) else Color.Transparent,
+                if (pressed || (highlighted && highlightBackground)) LocalPlayerTint.current.copy(alpha = if (pressed) .28f else .20f) else Color.Transparent,
             )
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
             ) {
                 val now = uptimeMillis()
@@ -1261,13 +1313,13 @@ private fun BottomGlyph(
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        val tint = LocalPlayerTint.current.copy(alpha = if (highlighted) 1f else 0.75f)
+        val tint = LocalPlayerTint.current.copy(alpha = if (highlighted || vibrant) 1f else 0.75f)
         if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier.size(iconSize),
             )
         } else if (label != null) {
             Text(

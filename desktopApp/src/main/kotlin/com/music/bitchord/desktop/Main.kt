@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+// This App was build by Chris Tambayong - Fumakill4
+
 import androidx.compose.runtime.CompositionLocalProvider
 import com.music.bitchord.ui.player.PlayerPlatform
 import com.music.bitchord.data.DebugLog
@@ -124,21 +126,15 @@ private fun desktopMain() = application {
                 (composeWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
                 composeWindow.rootPane.isOpaque = false
             }
-            // AWT measures this in device pixels while Compose's window state is in dp. Keeping
-            // the scale in the conversion makes the usable minimum consistent on every display.
-            val transform = composeWindow.graphicsConfiguration.defaultTransform
+            // AWT window dimensions are user-space units; the graphics transform already maps
+            // them to Retina/device pixels. Scaling again clamps the MiniPlayer to twice its size.
             composeWindow.minimumSize = Dimension(
-                (MIN_WINDOW_WIDTH_DP * transform.scaleX).roundToInt(),
-                (MIN_WINDOW_HEIGHT_DP * transform.scaleY).roundToInt(),
+                MIN_WINDOW_WIDTH_DP.roundToInt(),
+                MIN_WINDOW_HEIGHT_DP.roundToInt(),
             )
-            // Setting AWT's minimum during the first composition can resize the native peer to
-            // that minimum without updating Compose's state. Compose would then keep laying out a
-            // 1220dp surface inside a 900dp window, cropping the right edge and putting its resize
-            // boundary off-screen until a maximize/restore cycle synchronised the two. Re-assert
-            // the requested opening size on the native peer so both layers start in agreement.
             composeWindow.size = Dimension(
-                (openingSize.width.value * transform.scaleX).roundToInt(),
-                (openingSize.height.value * transform.scaleY).roundToInt(),
+                openingSize.width.value.roundToInt(),
+                openingSize.height.value.roundToInt(),
             )
             if (DesktopPlatform.isWindows && DesktopWindowsFrame.install("BitChord")) {
                 DesktopWindowBackdrop.apply()

@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+// This App was build by Chris Tambayong - Fumakill4
+
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -53,7 +55,7 @@ internal object DesktopWindowMode {
             if (state != null) {
                 if (state.size.width >= 500.dp) savedWidth = state.size.width
                 if (state.size.height >= 500.dp) savedHeight = state.size.height
-                state.size = DpSize(340.dp, 360.dp)
+                state.size = DpSize(340.dp, 340.dp)
             }
             _alwaysOnTop.value = true
         } else {

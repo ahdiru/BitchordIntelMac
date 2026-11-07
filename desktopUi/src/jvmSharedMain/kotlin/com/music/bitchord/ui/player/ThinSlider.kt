@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+// This App was build by Chris Tambayong - Fumakill4
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -16,6 +18,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -41,6 +44,18 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.Dp
@@ -100,15 +115,36 @@ fun ThinSlider(
     inactiveColor: Color = Color.White.copy(alpha = 0.26f),
     /** Halfway between the two track colours: visible against unplayed, invisible under played. */
     markerColor: Color = Color.White.copy(alpha = 0.5f),
+    /** Volume uses a clear capsule thumb; the playback scrubber keeps its thin Apple Music track. */
+    glassThumb: Boolean = false,
+    accessibilityLabel: String = "Playback position",
 ) {
     var dragging by remember { mutableStateOf(false) }
+    var dragValue by remember { mutableFloatStateOf(value.coerceIn(0f, 1f)) }
+    val changeValue by rememberUpdatedState(onValueChange)
+    val finishChange by rememberUpdatedState(onValueChangeFinished)
+    val currentValue by rememberUpdatedState(value.coerceIn(0f, 1f))
+    val reduceMotion by PlayerSettings.reduceAnimation.collectAsState()
+    val reduceTransparency by PlayerSettings.reduceDynamicBlur.collectAsState()
+    val shownValue = if (dragging) dragValue else value.coerceIn(0f, 1f)
+
     val height by animateDpAsState(
         targetValue = if (dragging) activeHeight else idleHeight,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+        animationSpec = if (reduceMotion) tween(0) else spring(
+            dampingRatio = .82f,
             stiffness = Spring.StiffnessMediumLow,
         ),
         label = "sliderHeight",
+    )
+    val glassThumbWidth by animateDpAsState(
+        if (dragging) 34.dp else 26.dp,
+        animationSpec = if (reduceMotion) tween(0) else spring(dampingRatio = .82f, stiffness = 550f),
+        label = "glassSliderWidth",
+    )
+    val glassThumbHeight by animateDpAsState(
+        if (dragging) 24.dp else 18.dp,
+        animationSpec = if (reduceMotion) tween(0) else spring(dampingRatio = .82f, stiffness = 550f),
+        label = "glassSliderHeight",
     )
     // The sheen gets a minimum beat even when the switch resolves instantly —
     // a cached offset can land in a few hundred milliseconds — so its entry,
@@ -143,30 +179,52 @@ fun ThinSlider(
             .fillMaxWidth()
             // Generous invisible touch target — the visible bar is only ~7dp.
             .height(activeHeight + 22.dp)
-            // One gesture loop for both taps and drags. Two separate detectors
-            // — a drag one plus a tap one — meant taps never landed: the drag
-            // detector took the pointer and a tap has no drag to report.
+            .semantics {
+                contentDescription = accessibilityLabel
+                progressBarRangeInfo = ProgressBarRangeInfo(shownValue, 0f..1f)
+                setProgress { requested ->
+                    changeValue(requested.coerceIn(0f, 1f)); finishChange?.invoke(); true
+                }
+            }
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                val next = when (event.key) {
+                    Key.DirectionLeft, Key.DirectionDown -> currentValue - .02f
+                    Key.DirectionRight, Key.DirectionUp -> currentValue + .02f
+                    Key.MoveHome -> 0f
+                    Key.MoveEnd -> 1f
+                    else -> return@onKeyEvent false
+                }
+                changeValue(next.coerceIn(0f, 1f)); finishChange?.invoke(); true
+            }
+            .focusable()
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    if (size.width <= 0) return@awaitEachGesture
+                    down.consume()
                     dragging = true
-                    onValueChange((down.position.x / size.width).coerceIn(0f, 1f))
-
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!pointer.pressed) {
-                            pointer.consume()
-                            break
-                        }
-                        if (pointer.positionChanged()) {
-                            onValueChange((pointer.position.x / size.width).coerceIn(0f, 1f))
-                            pointer.consume()
-                        }
+                    fun update(x: Float) {
+                        dragValue = (x / size.width).coerceIn(0f, 1f)
+                        changeValue(dragValue)
                     }
-
-                    dragging = false
-                    onValueChangeFinished?.invoke()
+                    try {
+                        update(down.position.x)
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!pointer.pressed) {
+                                update(pointer.position.x)
+                                pointer.consume()
+                                break
+                            }
+                            if (pointer.positionChanged()) { update(pointer.position.x); pointer.consume() }
+                        }
+                    } finally {
+                        dragging = false
+                        // Also release the parent's scrub/volume state if focus or the gesture is lost.
+                        finishChange?.invoke()
+                    }
                 }
             },
         contentAlignment = Alignment.Center,
@@ -218,6 +276,23 @@ fun ThinSlider(
                     ),
                     cornerRadius = radius,
                 )
+            }
+        }
+        if (glassThumb) {
+            Canvas(Modifier.fillMaxWidth().height(activeHeight + 18.dp)) {
+                val thumbWidth = glassThumbWidth.toPx().coerceAtMost(size.width)
+                val thumbHeight = glassThumbHeight.toPx()
+                val x = ((size.width - thumbWidth) * shownValue).coerceAtLeast(0f)
+                val y = (size.height - thumbHeight) / 2f
+                val radius = CornerRadius(thumbHeight / 2f)
+                drawRoundRect(Color.Black.copy(alpha = .18f), Offset(x, y + 2.dp.toPx()), Size(thumbWidth, thumbHeight), radius)
+                drawRoundRect(
+                    if (reduceTransparency) Brush.verticalGradient(listOf(Color(0xFFE4E4E8), Color(0xFFB8B8BF)))
+                    else Brush.verticalGradient(listOf(Color.White.copy(alpha = .85f), Color.White.copy(alpha = .38f), Color.White.copy(alpha = .62f))),
+                    Offset(x, y), Size(thumbWidth, thumbHeight), radius,
+                )
+                drawRoundRect(Brush.linearGradient(listOf(Color.White, Color.White.copy(alpha = .15f), Color.White.copy(alpha = .8f))),
+                    Offset(x, y), Size(thumbWidth, thumbHeight), radius, style = Stroke(.75.dp.toPx()))
             }
         }
         // Composed only while switching or mixing. The infinite animation therefore costs no

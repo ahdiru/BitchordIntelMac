@@ -759,6 +759,8 @@ fun NowPlayingScreen(
      * can offer whichever of the two is not on screen. Left null the player never
      * receives an outside toggle.
      */
+    playerLyricsToggle: MutableState<Boolean>? = null,
+    playerLyricsShowing: MutableState<Boolean>? = null,
     playerQueueToggle: MutableState<Boolean>? = null,
     playerQueueShowing: MutableState<Boolean>? = null,
     /**
@@ -997,6 +999,17 @@ fun NowPlayingScreen(
             requested.value = false
             toggleQueue()
         }
+    }
+    LaunchedEffect(playerLyricsToggle?.value) {
+        val requested = playerLyricsToggle ?: return@LaunchedEffect
+        if (requested.value) {
+            requested.value = false
+            openLyrics()
+        }
+    }
+    SideEffect {
+        playerLyricsShowing?.value = lyricsOpen ||
+            (landscapePlayerAvailable(windowWidth, windowHeight) && windowHeight >= 440.dp && !queueOpen)
     }
     val lyricsLoadingLines = stringArrayResource(Res.array.lyrics_loading_lines)
     val lyricsLoadingText = remember(song.videoId) { lyricsLoadingLines.random() }
@@ -2112,6 +2125,10 @@ fun NowPlayingScreen(
                                     onPlayPause = onPlayPause,
                                     onNext = onNext,
                                     compact = compact,
+                                    shuffleEnabled = shuffleEnabled,
+                                    onToggleShuffle = onToggleShuffle,
+                                    repeatMode = repeatMode,
+                                    onCycleRepeat = onCycleRepeat,
                                 )
                             },
                             volume = if (hideVolumeBar || !compact) {
@@ -3780,6 +3797,10 @@ fun NowPlayingScreen(
                         onPrevious = onPrevious,
                         onPlayPause = onPlayPause,
                         onNext = onNext,
+                        shuffleEnabled = shuffleEnabled,
+                        onToggleShuffle = onToggleShuffle,
+                        repeatMode = repeatMode,
+                        onCycleRepeat = onCycleRepeat,
                     )
 
                     // Keep the volume slot's full footprint when its contents are

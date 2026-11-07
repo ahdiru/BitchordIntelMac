@@ -68,9 +68,12 @@ look for macOS files yet, so Mac users get the release page.
 `desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopUpdateChecker.kt`, shown as a dialog
 from `BitChordDesktopApp` in `DesktopApp.kt`:
 
-1. At launch it calls `GET https://api.github.com/repos/kushagrasinghx/BitChord/releases/latest`.
-2. It strips the `v` from `tag_name` and compares it with `bitchord.version` (numeric, dot by dot;
-   a `-beta` current version is older than the same release).
+1. On macOS it calls `GET https://api.github.com/repos/fumakill4/BitChord/releases?per_page=30`
+   and selects the first published, non-preview release with a DMG for the current architecture.
+   Dedicated iOS and Windows releases are skipped. Other desktop platforms retain their upstream
+   `GET https://api.github.com/repos/kushagrasinghx/BitChord/releases/latest` endpoint.
+2. It normalizes `macos-v` or `v` from `tag_name` and compares with `bitchord.version` numerically,
+   including `.E1`, `.E2`, and later edit builds. A `-beta` current version is older than the same release.
 3. If newer, it picks the asset for the running OS and shows "Update available" with Download and
    Later. Download opens the asset URL in the browser. If no asset matches it opens the release
    page instead. Nothing is installed automatically.
@@ -112,3 +115,10 @@ Run an old build with the version forced low, against the real latest release:
 ```
 
 The dialog should appear. Run it with the current published version and it should not.
+
+## Dedicated macOS edit releases
+
+The fork publishes manually validated Apple Silicon DMGs under `macos-v<version>` tags, for example
+`macos-v1.9.1.E4`, with asset `BitChord-1.9.1.E4-macos-arm64.dmg`. This tag namespace does not trigger
+the upstream `v*.*.*` multi-platform release workflow. Download buttons target the exact macOS asset;
+iOS and Windows keep their own dedicated releases.

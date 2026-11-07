@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+// This App was build by Chris Tambayong - Fumakill4
+
 import com.music.bitchord.sharedui.resources.*
 
 import androidx.compose.animation.Crossfade
@@ -68,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
@@ -124,7 +127,7 @@ internal val LANDSCAPE_ART_CORNER = 10.dp
 private val LandscapeArtShape = RoundedCornerShape(LANDSCAPE_ART_CORNER)
 
 /** Room above the landscape columns for the sheet's drag handle. */
-private val LANDSCAPE_HANDLE_STRIP = 24.dp
+private val LANDSCAPE_HANDLE_STRIP = 56.dp
 
 /**
  * How much of the desktop left column the transport and the toggle row take.
@@ -134,7 +137,7 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  * shunting them down to its foot. Only the desktop window uses it; a
  * phone-height window keeps the sleeve filling the column above its row.
  */
-private val LANDSCAPE_DESKTOP_CONTROLS_RESERVE = 300.dp
+private val LANDSCAPE_DESKTOP_CONTROLS_RESERVE = 178.dp
 
 /**
  * The player in a landscape window — a tablet, or a phone on its side. See
@@ -190,7 +193,7 @@ internal fun LandscapePlayerLayout(
             contentAlignment = Alignment.TopCenter,
         ) {
             val compact = maxHeight < LANDSCAPE_COMPACT_HEIGHT
-            val gutter = if (compact) LANDSCAPE_GUTTER_COMPACT else PLAYER_GUTTER
+            val gutter = if (compact) LANDSCAPE_GUTTER_COMPACT else (maxWidth * .06f).coerceIn(28.dp, 64.dp)
 
             // On a desktop window the transport sits under the sleeve in the
             // left column, so the main state shows the lyric sheet here rather
@@ -214,7 +217,7 @@ internal fun LandscapePlayerLayout(
                         .fillMaxHeight()
                         .padding(horizontal = gutter),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = if (compact) Arrangement.Top else Arrangement.Center,
+                    verticalArrangement = Arrangement.Top,
                 ) {
                     if (compact) {
                         // The sleeve is square and takes whichever of the two
@@ -252,7 +255,7 @@ internal fun LandscapePlayerLayout(
                                 true,
                             )
                         }
-                        Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.height(16.dp))
                         controls(false)
                         // The volume bar and the lyrics/output/queue row are
                         // folded into the player's overflow, which the song
@@ -309,18 +312,7 @@ internal fun LandscapePlayerLayout(
                 }
             }
 
-            // The sheet closes from a downward drag anywhere nothing else
-            // claims, as it does in portrait; this is only the promise.
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = 8.dp)
-                    .width(38.dp)
-                    .height(5.dp)
-                    .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(LocalPlayerTint.current.copy(alpha = 0.70f)),
-            )
+
         }
     }
 }
@@ -557,7 +549,7 @@ internal fun LandscapeCredits(
                 var titleOverflowing by remember { mutableStateOf(false) }
                 MarqueeText(
                     text = song.title,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 17.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold),
                     color = Color.White,
                     onOverflowChange = { titleOverflowing = it },
                     leading = if (song.isExplicit == true) {
@@ -573,7 +565,7 @@ internal fun LandscapeCredits(
                     credits = remember(song.artist, song.artists, song.artistId) {
                         artistCredits(song.artist, song.artists, song.artistId)
                     },
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W500),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium),
                     color = LocalPlayerTint.current.copy(alpha = 0.55f),
                     // A title that's also scrolling gets to go first — starting
                     // together reads as clutter, so the artist waits a beat.
