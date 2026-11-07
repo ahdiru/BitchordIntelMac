@@ -59,6 +59,18 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 **[Download BitChord-iOS-v1.9.1.ipa (Dedicated iOS Release)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1-ios/BitChord-iOS-v1.9.1.ipa)**  
 <sub>View the dedicated **[iOS v1.9.1 Release Page](https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-ios)**</sub>
 
+<br/>
+
+### 🪟 Windows 10 & 11 (64-bit)
+<a href="https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-windows">
+  <img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/windows/cozy.svg" alt="Download for Windows" height="60">
+</a>
+
+<br/>
+
+**[Download BitChord-1.9.1-windows-x64-setup.exe (Windows Installer)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1-windows/BitChord-1.9.1-windows-x64-setup.exe)**  
+<sub>Or get the portable version: **[BitChord-1.9.1-windows-x64-portable.zip](https://github.com/fumakill4/BitChord/releases/download/v1.9.1-windows/BitChord-1.9.1-windows-x64-portable.zip)**</sub>
+
 </div>
 
 ---
