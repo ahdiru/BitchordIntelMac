@@ -199,6 +199,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -3376,6 +3377,8 @@ fun BitChordDesktopApp() {
                         onRestoreFullWindow = { windowActions?.toggleMiniPlayer?.invoke() },
                         onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
                         onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
+                        isLyricsActive = overlays.sidePanel == DesktopSidePanel.LYRICS,
+                        isQueueActive = overlays.sidePanel == DesktopSidePanel.QUEUE,
                     )
                 },
                 overlay = {
@@ -5039,6 +5042,7 @@ private fun DesktopBottomChrome(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
 ) {
+    if (!compact) return
     Column(
         Modifier
             .fillMaxWidth()
@@ -5046,8 +5050,6 @@ private fun DesktopBottomChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Show the now-playing pill in ALL layout modes (compact & non-compact),
-        // matching Apple Music where the player bar always floats at the bottom.
         if (song != null) {
             DesktopCompactPlayerPill(
                 song = song,
@@ -5057,10 +5059,7 @@ private fun DesktopBottomChrome(
                 onNext = onNext,
             )
         }
-        // Navigation tabs are only shown on compact (narrow) windows.
-        if (compact) {
-            DesktopFloatingNavigation(destination, onDestinationSelected)
-        }
+        DesktopFloatingNavigation(destination, onDestinationSelected)
     }
 }
 
@@ -5086,20 +5085,28 @@ private fun DesktopFloatingNavigation(
             .widthIn(max = 440.dp)
             .fillMaxWidth()
             .shadow(
-                elevation = 20.dp,
+                elevation = 24.dp,
                 shape = shape,
                 ambientColor = Color.Black.copy(alpha = 0.5f),
                 spotColor = Color.Black.copy(alpha = 0.7f),
             )
             .clip(shape)
-            .desktopBarGlass(shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.20f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color(0x3514141E),
+                    ),
+                ),
+            )
             .border(
                 width = 1.dp,
                 brush = Brush.linearGradient(
                     listOf(
-                        Color.White.copy(alpha = 0.38f),
-                        Color.White.copy(alpha = 0.08f),
-                        Color.White.copy(alpha = 0.22f),
+                        Color.White.copy(alpha = 0.55f),
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.30f),
                     ),
                 ),
                 shape = shape,
@@ -5109,11 +5116,11 @@ private fun DesktopFloatingNavigation(
                 drawRect(
                     brush = Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.15f),
+                            Color.White.copy(alpha = 0.22f),
                             Color.Transparent,
                         ),
                         startY = 0f,
-                        endY = size.height * 0.6f,
+                        endY = size.height * 0.55f,
                     ),
                 )
             }
@@ -5127,14 +5134,26 @@ private fun DesktopFloatingNavigation(
             val tabCount = tabs.size
             val tabWidth = maxWidth / tabCount
             val pillShape = RoundedCornerShape(percent = 50)
+            val density = LocalDensity.current
+            val tabWidthPx = with(density) { tabWidth.toPx() }
+
+            var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+            var isDragging by remember { mutableStateOf(false) }
+
+            val targetIndicatorIndex = if (isDragging && tabWidthPx > 0f) {
+                (selectedIndex + (dragOffsetPx / tabWidthPx)).coerceIn(0f, (tabs.size - 1).toFloat())
+            } else {
+                selectedIndex.toFloat()
+            }
 
             // Fluid spring-physics slider animation
             val animatedIndex by animateFloatAsState(
-                targetValue = selectedIndex.toFloat(),
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
+                targetValue = targetIndicatorIndex,
+                animationSpec = if (isDragging) {
+                    spring(dampingRatio = 1.0f, stiffness = Spring.StiffnessHigh)
+                } else {
+                    spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
+                },
                 label = "liquidGlassSlider",
             )
 
@@ -5144,38 +5163,77 @@ private fun DesktopFloatingNavigation(
                     .offset(x = tabWidth * animatedIndex)
                     .width(tabWidth)
                     .fillMaxHeight()
-                    .padding(2.dp)
+                    .padding(3.dp)
                     .shadow(
-                        elevation = 6.dp,
+                        elevation = 8.dp,
                         shape = pillShape,
-                        ambientColor = Color.Black.copy(alpha = 0.35f),
-                        spotColor = DesktopAccent.copy(alpha = 0.35f),
+                        ambientColor = Color.Black.copy(alpha = 0.40f),
+                        spotColor = DesktopAccent.copy(alpha = 0.50f),
                     )
                     .clip(pillShape)
                     .background(
                         Brush.verticalGradient(
                             listOf(
-                                Color.White.copy(alpha = 0.26f),
-                                Color.White.copy(alpha = 0.12f),
+                                Color.White.copy(alpha = 0.38f),
+                                Color.White.copy(alpha = 0.16f),
                             ),
                         ),
                     )
                     .border(
-                        width = 1.dp,
+                        width = 1.2.dp,
                         brush = Brush.linearGradient(
                             listOf(
-                                Color.White.copy(alpha = 0.60f),
-                                Color.White.copy(alpha = 0.15f),
-                                DesktopAccent.copy(alpha = 0.35f),
+                                Color.White.copy(alpha = 0.85f),
+                                Color.White.copy(alpha = 0.25f),
+                                DesktopAccent.copy(alpha = 0.50f),
                             ),
                         ),
                         shape = pillShape,
-                    ),
+                    )
+                    .drawBehind {
+                        // Specular glass gleam
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.35f),
+                                    Color.Transparent,
+                                ),
+                                startY = 0f,
+                                endY = size.height * 0.45f,
+                            ),
+                        )
+                    },
             )
 
-            // Interactive Tab Items Layer
+            // Interactive & Draggable Tab Items Layer
             Row(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(tabWidthPx, selectedIndex) {
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                isDragging = true
+                                dragOffsetPx = 0f
+                            },
+                            onHorizontalDrag = { _, dragAmount ->
+                                dragOffsetPx += dragAmount
+                            },
+                            onDragEnd = {
+                                if (tabWidthPx > 0f) {
+                                    val finalIndex = (selectedIndex + (dragOffsetPx / tabWidthPx))
+                                        .roundToInt()
+                                        .coerceIn(0, tabs.size - 1)
+                                    onDestinationSelected(tabs[finalIndex].first)
+                                }
+                                isDragging = false
+                                dragOffsetPx = 0f
+                            },
+                            onDragCancel = {
+                                isDragging = false
+                                dragOffsetPx = 0f
+                            },
+                        )
+                    },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 tabs.forEachIndexed { index, (item, iconAndLabel) ->
@@ -5253,20 +5311,28 @@ private fun DesktopCompactPlayerPill(
             .fillMaxWidth()
             .scale(pillScale)
             .shadow(
-                elevation = 20.dp,
+                elevation = 22.dp,
                 shape = shape,
                 ambientColor = Color.Black.copy(alpha = 0.5f),
                 spotColor = Color.Black.copy(alpha = 0.75f),
             )
             .clip(shape)
-            .desktopBarGlass(shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.20f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color(0x3514141E),
+                    ),
+                ),
+            )
             .border(
                 width = 1.dp,
                 brush = Brush.linearGradient(
                     listOf(
-                        Color.White.copy(alpha = 0.40f),
-                        Color.White.copy(alpha = 0.08f),
-                        Color.White.copy(alpha = 0.22f),
+                        Color.White.copy(alpha = 0.55f),
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.30f),
                     ),
                 ),
                 shape = shape,
@@ -5276,11 +5342,11 @@ private fun DesktopCompactPlayerPill(
                 drawRect(
                     brush = Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.15f),
+                            Color.White.copy(alpha = 0.22f),
                             Color.Transparent,
                         ),
                         startY = 0f,
-                        endY = size.height * 0.6f,
+                        endY = size.height * 0.55f,
                     ),
                 )
             }
@@ -5541,16 +5607,16 @@ private fun DesktopFrame(
                                                     PaddingValues(
                                                         start = 0.dp,
                                                         end = 0.dp,
-                                                        // Room for the floating bottom bar in both compact
-                                                        // and non-compact layouts (like Apple Music).
-                                                        bottom = if (isCompact) 128.dp else 96.dp,
+                                                        // Room for the floating bottom bar only when compact.
+                                                        // In wide desktop mode, topBar owns the controls.
+                                                        bottom = if (isCompact) 128.dp else 16.dp,
                                                     ),
                                                 )
                                             }
-                                            // Always render the bottom bar floating over content,
-                                            // matching Apple Music's layout where the now-playing bar
-                                            // sits at the bottom of the window, not the top.
-                                            Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(isCompact) }
+                                            // Render floating bottom bar ONLY in compact mode to prevent double bar.
+                                            if (isCompact) {
+                                                Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
+                                            }
                                         }
                                         Box(
                                             Modifier

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
@@ -48,7 +49,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -63,15 +66,14 @@ import com.music.bitchord.ui.player.ThinSlider
 /**
  * Pixel-perfect Apple Music MiniPlayer replica for macOS Desktop.
  *
- * Layout (top to bottom):
- *   1. Album art — full-width, square, no side padding, square corners
- *   2. Metadata row — title + artist (left) | ♡ heart + ••• more (right)
- *   3. Scrubber — ThinSlider + elapsed / −remaining timestamps
- *   4. Controls — shuffle | ⏮ | ▶/⏸ | ⏭ | repeat  (all flat icons, no orb)
- *   5. Volume row — 🔉 ThinSlider 🔊
- *
- * macOS native traffic-light buttons float over the window via NSVisualEffectView;
- * this composable draws no title-bar clearance of its own (Apple Music style).
+ * Exact Apple Music MiniPlayer Architecture (matching video reference):
+ *   1. Top Bar: Traffic lights clearance (left) | Return to Full Window button | Volume slider (right)
+ *   2. Main Player Body:
+ *      - Full Artwork with subtle rounded corners & ambient drop shadow
+ *      - Metadata row: Title + Artist (left) | ♡ Favorite + ••• More options (right)
+ *      - Scrubber: Hairline slider with elapsed & remaining timestamps
+ *      - Playback controls: Shuffle | Skip-Back | Play/Pause | Skip-Next | Repeat
+ *      - Bottom-Right Utility: Lyrics (💬) and Queue (📑) toggle buttons
  */
 @Composable
 internal fun DesktopAppleMiniPlayer(
@@ -94,6 +96,8 @@ internal fun DesktopAppleMiniPlayer(
     onRestoreFullWindow: () -> Unit,
     onOpenLyrics: (() -> Unit)? = null,
     onOpenQueue: (() -> Unit)? = null,
+    isLyricsActive: Boolean = false,
+    isQueueActive: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -102,22 +106,106 @@ internal fun DesktopAppleMiniPlayer(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1A1A20),
-                        Color(0xFF111116),
+                        Color(0xFF1E1E26),
+                        Color(0xFF121218),
                     ),
                 ),
             ),
     ) {
-        // ── 1. Album Art ─────────────────────────────────────────────────────
-        // Full-width square, no side padding — identical to Apple Music mini.
-        // macOS native traffic-light controls float above this area automatically.
+        // ── 1. Top Bar: Traffic Lights clearance + Expand + Volume ───────────
         DesktopTitleBarDragArea(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .padding(horizontal = 10.dp),
         ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // Left: Traffic light clearance on macOS + Return/Expand button
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (DesktopPlatform.isMac) {
+                        Spacer(Modifier.width(72.dp))
+                    }
+
+                    // Return to full window button (identical to Apple Music)
+                    IconButton(
+                        onClick = onRestoreFullWindow,
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.08f)),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.OpenInFull,
+                            contentDescription = "Return to full window",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
+
+                // Right: Volume Slider (Apple Music places volume in the top bar of MiniPlayer)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.VolumeDown,
+                        contentDescription = "Volume down",
+                        tint = Color.White.copy(alpha = 0.50f),
+                        modifier = Modifier.size(14.dp),
+                    )
+
+                    var localVol by remember(volume) { mutableFloatStateOf(volume) }
+                    ThinSlider(
+                        value = localVol.coerceIn(0f, 1f),
+                        onValueChange = {
+                            localVol = it
+                            onVolumeChange(it)
+                        },
+                        idleHeight = 3.dp,
+                        activeHeight = 6.dp,
+                        activeColor = Color.White.copy(alpha = 0.85f),
+                        inactiveColor = Color.White.copy(alpha = 0.20f),
+                        modifier = Modifier.width(70.dp),
+                    )
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
+                        contentDescription = "Volume up",
+                        tint = Color.White.copy(alpha = 0.50f),
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        }
+
+        // ── 2. Album Artwork ──────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 2.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            val artShape = RoundedCornerShape(10.dp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1f),
+                    .aspectRatio(1f)
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = artShape,
+                        ambientColor = Color.Black.copy(alpha = 0.5f),
+                        spotColor = Color.Black.copy(alpha = 0.8f),
+                    )
+                    .clip(artShape)
+                    .border(0.5.dp, Color.White.copy(alpha = 0.20f), artShape),
             ) {
                 DesktopArtwork(
                     url = song?.thumbnailUrl,
@@ -127,20 +215,16 @@ internal fun DesktopAppleMiniPlayer(
             }
         }
 
-        // ── 2. Metadata Row ───────────────────────────────────────────────────
-        // Title + Artist on the left; ♡ and ••• buttons on the right.
+        // ── 3. Metadata Row: Title + Artist (left) | Heart + More (right) ─────
         var moreMenuOpen by remember { mutableStateOf(false) }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Title + Artist column
-            Column(
-                modifier = Modifier.weight(1f),
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = song?.title ?: "Not Playing",
                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -161,30 +245,30 @@ internal fun DesktopAppleMiniPlayer(
                 )
             }
 
-            // ♡ Heart button
+            // Favorite / Heart button
             if (onToggleLike != null) {
-                MiniIconButton(
+                IconButton(
                     onClick = onToggleLike,
-                    contentDescription = if (isLiked) "Unlike" else "Like",
+                    modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
                         imageVector = if (isLiked) BitChordIcons.HeartFilled else BitChordIcons.Heart,
-                        contentDescription = null,
+                        contentDescription = if (isLiked) "Unlike" else "Like",
                         tint = if (isLiked) DesktopAccent else Color.White.copy(alpha = 0.65f),
                         modifier = Modifier.size(18.dp),
                     )
                 }
             }
 
-            // ••• More button
+            // More Options (•••) button
             Box {
-                MiniIconButton(
+                IconButton(
                     onClick = { if (song != null) moreMenuOpen = true },
-                    contentDescription = "More options",
+                    modifier = Modifier.size(32.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.MoreHoriz,
-                        contentDescription = null,
+                        contentDescription = "More",
                         tint = Color.White.copy(alpha = 0.65f),
                         modifier = Modifier.size(18.dp),
                     )
@@ -194,7 +278,7 @@ internal fun DesktopAppleMiniPlayer(
                     onDismissRequest = { moreMenuOpen = false },
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Open full player") },
+                        text = { Text("Restore full window") },
                         onClick = {
                             moreMenuOpen = false
                             onRestoreFullWindow()
@@ -204,7 +288,7 @@ internal fun DesktopAppleMiniPlayer(
             }
         }
 
-        // ── 3. Scrubber ───────────────────────────────────────────────────────
+        // ── 4. Scrubber ───────────────────────────────────────────────────────
         var seekingFraction by remember { mutableStateOf<Float?>(null) }
         val currentProgress = when {
             durationMs <= 0L -> 0f
@@ -215,7 +299,7 @@ internal fun DesktopAppleMiniPlayer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 14.dp),
         ) {
             ThinSlider(
                 value = currentProgress,
@@ -250,15 +334,13 @@ internal fun DesktopAppleMiniPlayer(
             }
         }
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
 
-        // ── 4. Controls Row ───────────────────────────────────────────────────
-        // Identical icon hierarchy to Apple Music:
-        //   shuffle  |  ⏮  |  ▶/⏸ (plain icon, no orb)  |  ⏭  |  repeat
+        // ── 5. Controls Row: Shuffle | Prev | Play/Pause | Next | Repeat ──────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+                .padding(horizontal = 10.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -278,14 +360,14 @@ internal fun DesktopAppleMiniPlayer(
                 )
             }
 
-            // Skip Previous (double-tap = restart, single = previous)
+            // Skip Previous (restart track if > 3s, otherwise prev)
             SkipPreviousButton(
                 positionMs = positionMs,
                 onPrevious = onPrevious,
                 onRestart = { onSeek(0L) },
             )
 
-            // Play / Pause — flat icon, same visual weight as other controls
+            // Play / Pause — flat Apple icon with spring bounce
             AppleMusicPlayPauseButton(
                 isPlaying = isPlaying,
                 onClick = onPlayPause,
@@ -322,44 +404,52 @@ internal fun DesktopAppleMiniPlayer(
             }
         }
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
 
-        // ── 5. Volume Row ─────────────────────────────────────────────────────
-        var localVol by remember(volume) { mutableFloatStateOf(volume) }
+        // ── 6. Bottom Right Utilities: Lyrics (💬) & Queue (📑) ───────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 2.dp),
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.VolumeDown,
-                contentDescription = "Volume down",
-                tint = Color.White.copy(alpha = 0.45f),
-                modifier = Modifier.size(16.dp),
-            )
-            ThinSlider(
-                value = localVol.coerceIn(0f, 1f),
-                onValueChange = {
-                    localVol = it
-                    onVolumeChange(it)
-                },
-                idleHeight = 3.dp,
-                activeHeight = 6.dp,
-                activeColor = Color.White.copy(alpha = 0.80f),
-                inactiveColor = Color.White.copy(alpha = 0.18f),
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
-                contentDescription = "Volume up",
-                tint = Color.White.copy(alpha = 0.45f),
-                modifier = Modifier.size(16.dp),
-            )
-        }
+            if (onOpenLyrics != null) {
+                IconButton(
+                    onClick = onOpenLyrics,
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(if (isLyricsActive) DesktopAccent.copy(alpha = 0.22f) else Color.Transparent),
+                ) {
+                    Icon(
+                        imageVector = BitChordIcons.LyricsQuote,
+                        contentDescription = "Lyrics",
+                        tint = if (isLyricsActive) DesktopAccent else Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
 
-        Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.width(4.dp))
+
+            if (onOpenQueue != null) {
+                IconButton(
+                    onClick = onOpenQueue,
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(if (isQueueActive) DesktopAccent.copy(alpha = 0.22f) else Color.Transparent),
+                ) {
+                    Icon(
+                        imageVector = BitChordIcons.Queue,
+                        contentDescription = "Queue",
+                        tint = if (isQueueActive) DesktopAccent else Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -367,12 +457,6 @@ internal fun DesktopAppleMiniPlayer(
 // Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Apple Music-style flat Play/Pause button.
- * Large icon (28dp), NO circle background — same visual tier as the other controls,
- * but slightly bigger to signal primary action (matches Apple Music exactly).
- * Press gives a spring-bounce scale animation.
- */
 @Composable
 private fun AppleMusicPlayPauseButton(
     isPlaying: Boolean,
@@ -396,11 +480,6 @@ private fun AppleMusicPlayPauseButton(
         label = "playPauseScale",
     )
 
-    val iconTint by animateColorAsState(
-        targetValue = if (isHovered) Color.White else Color.White.copy(alpha = 0.95f),
-        label = "playPauseTint",
-    )
-
     Box(
         modifier = modifier
             .size(44.dp)
@@ -415,19 +494,12 @@ private fun AppleMusicPlayPauseButton(
         Icon(
             imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
             contentDescription = if (isPlaying) "Pause" else "Play",
-            tint = iconTint,
+            tint = Color.White,
             modifier = Modifier.size(30.dp),
         )
     }
 }
 
-/**
- * Skip-Previous button with double-tap detection.
- * - Single tap → previous track (like Apple Music)
- * - Double tap within 300ms → restart current track (seek to 0)
- *
- * If positionMs > 3 seconds, single tap also restarts (Apple Music behavior).
- */
 @Composable
 private fun SkipPreviousButton(
     positionMs: Long,
@@ -451,7 +523,6 @@ private fun SkipPreviousButton(
                 detectTapGestures(
                     onDoubleTap = { onRestart() },
                     onTap = {
-                        // Apple Music: if > 3s played, go back to start; else previous
                         if (positionMs > 3_000L) onRestart() else onPrevious()
                     },
                 )
@@ -467,29 +538,6 @@ private fun SkipPreviousButton(
     }
 }
 
-/**
- * Generic mini icon button for metadata row (heart, more).
- * Hit target is 36dp; no background by default.
- */
-@Composable
-private fun MiniIconButton(
-    onClick: () -> Unit,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    IconButton(
-        onClick = onClick,
-        modifier = modifier.size(34.dp),
-    ) {
-        content()
-    }
-}
-
-/**
- * Generic control button for the playback controls row.
- * Applies a subtle spring press animation; optionally tints active state.
- */
 @Composable
 private fun MiniControlButton(
     onClick: () -> Unit,
