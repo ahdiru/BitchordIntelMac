@@ -1,0 +1,91 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version string (e.g. 1.9.1)"
+        required: false
+        default: "1.9.1"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows · exe, msi, portable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install WiX Toolset 3
+        shell: pwsh
+        run: |
+          $url = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+          Invoke-WebRequest -Uri $url -OutFile wix.zip
+          Expand-Archive wix.zip -DestinationPath "$env:RUNNER_TEMP\wix"
+          "$env:RUNNER_TEMP\wix" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Create local.properties
+        shell: bash
+        run: |
+          touch local.properties
+
+      - name: Build Windows Packages
+        shell: bash
+        run: |
+          ./gradlew :desktopApp:packageMsi :desktopApp:packageExe :desktopApp:createDistributable -Pbitchord.version=${{ inputs.version || '1.9.1' }} --no-daemon
+
+      - name: Collect Artifacts
+        shell: pwsh
+        run: |
+          $v = "${{ inputs.version || '1.9.1' }}"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          if (Test-Path desktopApp/build/compose/binaries/main/msi/*.msi) {
+            Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/BitChord-$v-windows-x64.msi"
+          }
+          if (Test-Path desktopApp/build/compose/binaries/main/exe/*.exe) {
+            Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/BitChord-$v-windows-x64-setup.exe"
+          }
+          if (Test-Path desktopApp/build/compose/binaries/main/app/BitChord) {
+            7z a -tzip -mx=5 "dist/BitChord-$v-windows-x64-portable.zip" "desktopApp/build/compose/binaries/main/app/BitChord/*" | Out-Null
+          }
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-binaries
+          path: dist/*
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version || '1.9.1' }}-windows"
+          name: "BitChord v${{ inputs.version || '1.9.1' }} for Windows 10/11 (x64)"
+          body: |
+            Official BitChord v${{ inputs.version || '1.9.1' }} release for Windows 10 and Windows 11 (64-bit).
+
+            ### Included Packages:
+            - **Setup Installer (.exe)**: `BitChord-${{ inputs.version || '1.9.1' }}-windows-x64-setup.exe` (Recommended)
+            - **Windows Installer (.msi)**: `BitChord-${{ inputs.version || '1.9.1' }}-windows-x64.msi`
+            - **Portable (.zip)**: `BitChord-${{ inputs.version || '1.9.1' }}-windows-x64-portable.zip` (Extract & play without installing)
+
+            ### Features:
+            - Native Windows System Media Transport Controls (SMTC)
+            - Hi-Res Lossless Audio decoding with FFmpeg 7.1
+            - DJ Automix, Crossfade & Liquid Glass desktop aesthetic
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
