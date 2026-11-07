@@ -54,6 +54,7 @@ import com.music.bitchord.ui.player.rememberMixPulse
 import androidx.compose.runtime.SideEffect
 import com.music.bitchord.data.model.QueueTier
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -66,6 +67,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -140,6 +143,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Folder
@@ -3367,6 +3371,8 @@ fun BitChordDesktopApp() {
                             volume = it
                             persistence.saveString("volume", it.toString())
                         },
+                        isLiked = selectedSong?.videoId in likedIds,
+                        onToggleLike = { selectedSong?.let { toggleLike(it) } },
                         onRestoreFullWindow = { windowActions?.toggleMiniPlayer?.invoke() },
                         onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
                         onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
@@ -5040,7 +5046,9 @@ private fun DesktopBottomChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (compact && song != null) {
+        // Show the now-playing pill in ALL layout modes (compact & non-compact),
+        // matching Apple Music where the player bar always floats at the bottom.
+        if (song != null) {
             DesktopCompactPlayerPill(
                 song = song,
                 isPlaying = isPlaying,
@@ -5049,7 +5057,10 @@ private fun DesktopBottomChrome(
                 onNext = onNext,
             )
         }
-        DesktopFloatingNavigation(destination, onDestinationSelected)
+        // Navigation tabs are only shown on compact (narrow) windows.
+        if (compact) {
+            DesktopFloatingNavigation(destination, onDestinationSelected)
+        }
     }
 }
 
@@ -5058,43 +5069,160 @@ private fun DesktopFloatingNavigation(
     destination: DesktopDestination,
     onDestinationSelected: (DesktopDestination) -> Unit,
 ) {
-    val tabs = listOf(
-        DesktopDestination.LISTEN_NOW to (BitChordIcons.Play to "Play"),
-        DesktopDestination.EXPLORE to (BitChordIcons.Explore to "Explore"),
-        DesktopDestination.LIBRARY to (BitChordIcons.Library to "Library"),
-        DesktopDestination.SEARCH to (BitChordIcons.Search to "Search"),
-    )
+    val tabs = remember {
+        listOf(
+            DesktopDestination.LISTEN_NOW to (BitChordIcons.Play to "Play"),
+            DesktopDestination.EXPLORE to (BitChordIcons.Explore to "Explore"),
+            DesktopDestination.LIBRARY to (BitChordIcons.Library to "Library"),
+            DesktopDestination.SEARCH to (BitChordIcons.Search to "Search"),
+        )
+    }
     val selected = tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
+    val selectedIndex = tabs.indexOfFirst { it.first == selected }.coerceAtLeast(0)
     val shape = RoundedCornerShape(percent = 50)
-    Surface(
+
+    Box(
         modifier = Modifier
             .widthIn(max = 440.dp)
             .fillMaxWidth()
+            .shadow(
+                elevation = 20.dp,
+                shape = shape,
+                ambientColor = Color.Black.copy(alpha = 0.5f),
+                spotColor = Color.Black.copy(alpha = 0.7f),
+            )
             .clip(shape)
-            .desktopBarGlass(shape),
-        shape = shape,
-        color = Color.Transparent,
-        tonalElevation = 0.dp,
+            .desktopBarGlass(shape)
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.38f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.22f),
+                    ),
+                ),
+                shape = shape,
+            )
+            .drawBehind {
+                // Specular liquid glass top sheen
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.15f),
+                            Color.Transparent,
+                        ),
+                        startY = 0f,
+                        endY = size.height * 0.6f,
+                    ),
+                )
+            }
+            .padding(4.dp),
     ) {
-        Row(
-            Modifier
+        BoxWithConstraints(
+            modifier = Modifier
                 .fillMaxWidth()
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                .height(50.dp),
         ) {
-            tabs.forEach { (item, iconAndLabel) ->
-                val isSelected = item == selected
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(if (isSelected) DesktopAccent.copy(alpha = 0.18f) else Color.Transparent)
-                        .clickable { onDestinationSelected(item) }
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(iconAndLabel.first, iconAndLabel.second, tint = if (isSelected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(20.dp))
-                    Text(iconAndLabel.second, color = if (isSelected) Color.White else DesktopSecondary, style = MaterialTheme.typography.labelSmall)
+            val tabCount = tabs.size
+            val tabWidth = maxWidth / tabCount
+            val pillShape = RoundedCornerShape(percent = 50)
+
+            // Fluid spring-physics slider animation
+            val animatedIndex by animateFloatAsState(
+                targetValue = selectedIndex.toFloat(),
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                ),
+                label = "liquidGlassSlider",
+            )
+
+            // True Liquid Glass Sliding Pill Indicator
+            Box(
+                modifier = Modifier
+                    .offset(x = tabWidth * animatedIndex)
+                    .width(tabWidth)
+                    .fillMaxHeight()
+                    .padding(2.dp)
+                    .shadow(
+                        elevation = 6.dp,
+                        shape = pillShape,
+                        ambientColor = Color.Black.copy(alpha = 0.35f),
+                        spotColor = DesktopAccent.copy(alpha = 0.35f),
+                    )
+                    .clip(pillShape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.26f),
+                                Color.White.copy(alpha = 0.12f),
+                            ),
+                        ),
+                    )
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.linearGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.60f),
+                                Color.White.copy(alpha = 0.15f),
+                                DesktopAccent.copy(alpha = 0.35f),
+                            ),
+                        ),
+                        shape = pillShape,
+                    ),
+            )
+
+            // Interactive Tab Items Layer
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                tabs.forEachIndexed { index, (item, iconAndLabel) ->
+                    val isSelected = index == selectedIndex
+                    val interaction = remember { MutableInteractionSource() }
+                    val isPressed by interaction.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.90f else 1.0f,
+                        animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
+                        label = "tabPressScale",
+                    )
+
+                    val contentTint by animateColorAsState(
+                        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.55f),
+                        label = "tabContentTint",
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .scale(scale)
+                            .clip(pillShape)
+                            .clickable(
+                                interactionSource = interaction,
+                                indication = null,
+                                onClick = { onDestinationSelected(item) },
+                            ),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Icon(
+                            imageVector = iconAndLabel.first,
+                            contentDescription = iconAndLabel.second,
+                            tint = contentTint,
+                            modifier = Modifier.size(19.dp),
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = iconAndLabel.second,
+                            color = contentTint,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -5110,27 +5238,163 @@ private fun DesktopCompactPlayerPill(
     onNext: () -> Unit,
 ) {
     val shape = RoundedCornerShape(percent = 50)
-    Row(
-        Modifier
+    val interaction = remember { MutableInteractionSource() }
+    val isPressed by interaction.collectIsPressedAsState()
+    val isHovered by interaction.collectIsHoveredAsState()
+    val pillScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else if (isHovered) 1.01f else 1.0f,
+        animationSpec = spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow),
+        label = "pillScale",
+    )
+
+    Box(
+        modifier = Modifier
             .widthIn(max = 440.dp)
             .fillMaxWidth()
+            .scale(pillScale)
+            .shadow(
+                elevation = 20.dp,
+                shape = shape,
+                ambientColor = Color.Black.copy(alpha = 0.5f),
+                spotColor = Color.Black.copy(alpha = 0.75f),
+            )
             .clip(shape)
             .desktopBarGlass(shape)
-            .clickable(onClick = onExpand)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.40f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.22f),
+                    ),
+                ),
+                shape = shape,
+            )
+            .drawBehind {
+                // Top specular shimmer for Apple Liquid Glass depth
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.15f),
+                            Color.Transparent,
+                        ),
+                        startY = 0f,
+                        endY = size.height * 0.6f,
+                    ),
+                )
+            }
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onExpand,
+            )
+            .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
-        DesktopArtwork(song.thumbnailUrl, Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), px = ROW_ART_PX)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
-            Text(song.artist, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        IconButton(onClick = onPlayPause) {
-            Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (isPlaying) "Pause" else "Play", tint = Color.White)
-        }
-        IconButton(onClick = onNext) {
-            Icon(Icons.Rounded.FastForward, DesktopStrings["widget_next", "Next"], tint = Color.White)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Album art with rounded square and subtle glass rim
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.30f), RoundedCornerShape(10.dp)),
+            ) {
+                DesktopArtwork(
+                    url = song.thumbnailUrl,
+                    modifier = Modifier.fillMaxSize(),
+                    px = ROW_ART_PX,
+                )
+            }
+
+            Spacer(Modifier.width(11.dp))
+
+            // Title and Artist
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = song.title,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    text = song.artist,
+                    color = Color.White.copy(alpha = 0.60f),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // Tactile Play/Pause button with spring bounce
+            val playInteraction = remember { MutableInteractionSource() }
+            val playPressed by playInteraction.collectIsPressedAsState()
+            val playScale by animateFloatAsState(
+                targetValue = if (playPressed) 0.86f else 1.0f,
+                animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
+                label = "pillPlayScale",
+            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .scale(playScale)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.30f), CircleShape)
+                    .clickable(
+                        interactionSource = playInteraction,
+                        indication = null,
+                        onClick = onPlayPause,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            Spacer(Modifier.width(6.dp))
+
+            // Tactile Skip Next button with spring bounce
+            val nextInteraction = remember { MutableInteractionSource() }
+            val nextPressed by nextInteraction.collectIsPressedAsState()
+            val nextScale by animateFloatAsState(
+                targetValue = if (nextPressed) 0.86f else 1.0f,
+                animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessHigh),
+                label = "pillNextScale",
+            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .scale(nextScale)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .clickable(
+                        interactionSource = nextInteraction,
+                        indication = null,
+                        onClick = onNext,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SkipNext,
+                    contentDescription = DesktopStrings["widget_next", "Next"],
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
@@ -5277,15 +5541,16 @@ private fun DesktopFrame(
                                                     PaddingValues(
                                                         start = 0.dp,
                                                         end = 0.dp,
-                                                        // Room for the bar that floats over this, so the
-                                                        // last row can still be scrolled clear of it.
-                                                        bottom = if (isCompact) 128.dp else 16.dp,
+                                                        // Room for the floating bottom bar in both compact
+                                                        // and non-compact layouts (like Apple Music).
+                                                        bottom = if (isCompact) 128.dp else 96.dp,
                                                     ),
                                                 )
                                             }
-                                            if (isCompact) {
-                                                Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
-                                            }
+                                            // Always render the bottom bar floating over content,
+                                            // matching Apple Music's layout where the now-playing bar
+                                            // sits at the bottom of the window, not the top.
+                                            Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(isCompact) }
                                         }
                                         Box(
                                             Modifier
