@@ -72,15 +72,25 @@ jobs:
         shell: pwsh
         run: |
           $v = "${{ steps.build.outputs.releaseVersion }}"
+          $b = "${{ steps.build.outputs.buildNumber }}"
           New-Item -ItemType Directory -Force dist | Out-Null
           if (Test-Path desktopApp/build/compose/binaries/main/msi/*.msi) {
             Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/BitChord-$v-windows-x64.msi"
+            if ($b) {
+              Copy-Item desktopApp/build/compose/binaries/main/msi/*.msi "dist/BitChord-$v-build$b-windows-x64.msi"
+            }
           }
           if (Test-Path desktopApp/build/compose/binaries/main/exe/*.exe) {
             Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/BitChord-$v-windows-x64-setup.exe"
+            if ($b) {
+              Copy-Item desktopApp/build/compose/binaries/main/exe/*.exe "dist/BitChord-$v-build$b-windows-x64-setup.exe"
+            }
           }
           if (Test-Path desktopApp/build/compose/binaries/main/app/BitChord) {
             7z a -tzip -mx=5 "dist/BitChord-$v-windows-x64-portable.zip" "desktopApp/build/compose/binaries/main/app/BitChord/*" | Out-Null
+            if ($b) {
+              Copy-Item "dist/BitChord-$v-windows-x64-portable.zip" "dist/BitChord-$v-build$b-windows-x64-portable.zip"
+            }
           }
           Get-ChildItem dist | Format-Table Name, Length
 
@@ -99,15 +109,17 @@ jobs:
             Official BitChord v${{ steps.build.outputs.releaseVersion }} release for Windows 10 and Windows 11 (64-bit).
             Windows application build: ${{ steps.build.outputs.buildNumber || 'standard' }}.
 
-            ### Included Packages:
-            - **Setup Installer (.exe)**: `BitChord-${{ steps.build.outputs.releaseVersion }}-windows-x64-setup.exe` (Recommended)
-            - **Windows Installer (.msi)**: `BitChord-${{ steps.build.outputs.releaseVersion }}-windows-x64.msi`
-            - **Portable (.zip)**: `BitChord-${{ steps.build.outputs.releaseVersion }}-windows-x64-portable.zip` (Extract & play without installing)
+            ### Included Packages (build${{ steps.build.outputs.buildNumber }}):
+            - **Setup Installer (.exe)**: `BitChord-${{ steps.build.outputs.releaseVersion }}-build${{ steps.build.outputs.buildNumber }}-windows-x64-setup.exe` (Recommended)
+            - **Windows Installer (.msi)**: `BitChord-${{ steps.build.outputs.releaseVersion }}-build${{ steps.build.outputs.buildNumber }}-windows-x64.msi`
+            - **Portable (.zip)**: `BitChord-${{ steps.build.outputs.releaseVersion }}-build${{ steps.build.outputs.buildNumber }}-windows-x64-portable.zip` (Extract & play without installing)
 
-            ### Features:
-            - Native Windows System Media Transport Controls (SMTC)
-            - Hi-Res Lossless Audio decoding with FFmpeg 7.1
-            - DJ Automix, Crossfade & Liquid Glass desktop aesthetic
+            ### Features & Build 31 Refinements:
+            - **Compact Liquid Glass Navigation**: Redesigned bottom navigation bar with refined glass styling and sliding lens.
+            - **Detached Search Button**: Standalone circular search button matching build 31.
+            - **Synced Lyrics Following**: Lyrics continue scrolling smoothly in time even while BitChord is visible but unfocused.
+            - **MiniPlayer Polish**: MiniPlayer no longer aggressively forces always-on-top.
+            - **Native Windows SMTC & FFmpeg 7.1**: System Media Transport Controls and lossless audio decoding.
           files: dist/*
           overwrite_files: true
         env:
