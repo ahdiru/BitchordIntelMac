@@ -20,7 +20,7 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 
 <br>
 
-**[Download](#download)** · **[Features](#features)** · **[Install](#install)** · **[Contributing](#contributing)** · **[Original Repo](https://github.com/kushagrasinghx/BitChord)** · **[Disclaimer](#disclaimer)**
+**[Download](#download)** · **[Features](#features)** · **[Install](#install)** · **[Original Repo](https://github.com/kushagrasinghx/BitChord)** · **[Disclaimer](#disclaimer)**
 
 <br>
 
@@ -29,7 +29,7 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 </div>
 
 > [!IMPORTANT]
-> This is a dedicated Apple platform (macOS Apple Silicon & iOS) release fork of [BitChord](https://github.com/kushagrasinghx/BitChord) created by [Kushagra Singh](https://github.com/kushagrasinghx). It is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
+> This BitChord is a dedicated Apple platform (macOS Apple Silicon & iOS)  and Windows,  Fumakill4's own fork of BitChord for Android, rebuilt for macOS, iPhone, iPad, and Windows so the Android team doesn't make or support it.
 
 ---
 
@@ -165,23 +165,6 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 
 ---
 
-<div align="center">
-
-<h1><a id="contributing"></a>Contributing</h1>
-
-We welcome contributions to BitChord! Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
-
-[**Contributing Guide**](CONTRIBUTING.md) · [**Code of Conduct**](CODE_OF_CONDUCT.md) · [**Maintainers**](MAINTAINERS.md) · [**Additional Docs**](ADDITIONAL.md)
-
-### Thanks to all contributors ❤
-
-<a href="https://github.com/kushagrasinghx/BitChord/graphs/contributors">
-  <img src="https://raw.githubusercontent.com/kushagrasinghx/BitChord/contributors/contributors.svg" />
-</a>
-
-</div>
-
----
 
 <div align="center">
 
