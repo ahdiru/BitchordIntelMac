@@ -25,29 +25,34 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
  * back. Gating on this is the difference between "cheap while visible" and
  * "cheap", and it costs nothing on screen.
  *
- * RESUMED rather than STARTED: a paused-but-visible activity is one behind a
+ * By default RESUMED rather than STARTED: a paused-but-visible activity is one behind a
  * dialog or in the background half of split screen, which is not a case worth
- * animating for either.
+ * animating for either. Desktop lyric panels opt into visibleWhileUnfocused so a
+ * visible window keeps following the song when the reader uses another application.
  *
  * Playback itself is not gated on this and must not be — audio comes from
  * [com.music.bitchord.playback.PlaybackService], which is a foreground service
  * precisely so that it goes on running when this does not.
  */
 @Composable
-fun rememberIsForeground(): Boolean {
+fun rememberIsForeground(visibleWhileUnfocused: Boolean = false): Boolean {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var foreground by remember(lifecycle) {
-        mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    var foreground by remember(lifecycle, visibleWhileUnfocused) {
+        mutableStateOf(isUiForeground(lifecycle.currentState, visibleWhileUnfocused))
     }
-    DisposableEffect(lifecycle) {
+    DisposableEffect(lifecycle, visibleWhileUnfocused) {
         // Every event rather than ON_RESUME/ON_PAUSE alone: the state is read
         // back off the lifecycle instead of inferred from which event arrived,
         // so there is no transition this can be left out of step by.
         val observer = LifecycleEventObserver { owner, _ ->
-            foreground = owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            foreground = isUiForeground(owner.lifecycle.currentState, visibleWhileUnfocused)
         }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
     return foreground
 }
+
+/** A visible desktop lyric panel keeps following playback even while another app has focus. */
+internal fun isUiForeground(state: Lifecycle.State, visibleWhileUnfocused: Boolean): Boolean =
+    state.isAtLeast(if (visibleWhileUnfocused) Lifecycle.State.STARTED else Lifecycle.State.RESUMED)

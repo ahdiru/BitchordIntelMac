@@ -66,6 +66,55 @@ internal object DesktopMacFrame {
         }
     }
 
+    private val aboutCallbackRef = object : ActionCallback {
+        override fun invoke(self: Pointer, _cmd: Pointer, arg: Pointer) {
+            runCatching { showAboutOnMainThread() }
+                .onFailure { DesktopTrackLog.log("About panel could not be shown: ${it.javaClass.simpleName}") }
+        }
+    }
+
+    fun showAbout() {
+        if (!DesktopPlatform.isMac) return
+        if (isMainThread()) showAboutOnMainThread() else {
+            val send = msgSend ?: return
+            val helper = helperInstance ?: return
+            send.invoke(arrayOf(threadUtilities ?: return, selPerformOnMain ?: return,
+                objc?.sel_registerName("showAbout:") ?: return, helper, helper, false))
+        }
+    }
+
+    private fun showAboutOnMainThread() {
+        val o = objc ?: return
+        val send = msgSend ?: return
+        fun call(receiver: Pointer, selector: String, vararg args: Any?): Pointer? =
+            send.invokePointer(arrayOf(receiver, o.sel_registerName(selector), *args))
+        val strings = o.objc_getClass("NSString") ?: return
+        fun text(value: String): Pointer = call(strings, "stringWithUTF8String:", value)!!
+        val dictionaries = o.objc_getClass("NSMutableDictionary") ?: return
+        val options = call(dictionaries, "dictionary") ?: return
+        // NSApplication can still carry Java's generic process icon; use the bundled app icon.
+        val icon = generateSequence(java.nio.file.Path.of(System.getProperty("java.home"))) { it.parent }
+            .map { it.resolve("Resources/BitChord.icns") }.firstOrNull { java.nio.file.Files.isRegularFile(it) }
+        if (icon != null) {
+            val imageClass = o.objc_getClass("NSImage")
+            val allocated = imageClass?.let { call(it, "alloc") }
+            val image = allocated?.let { call(it, "initWithContentsOfFile:", text(icon.toString())) }
+            if (image != null) {
+                send.invoke(arrayOf(options, o.sel_registerName("setObject:forKey:"), image, text("ApplicationIcon")))
+                send.invoke(arrayOf(image, o.sel_registerName("release")))
+            }
+        }
+        val raw = System.getProperty("bitchord.version", "1.9.1-build31")
+        val version = raw.substringBefore("-build").substringBefore(".E")
+        val build = raw.substringAfter("-build", "31")
+        for ((key, value) in mapOf("ApplicationVersion" to version, "Version" to "build $build",
+            "Copyright" to "this version is created by Chris Tambayong - Fumakill4\n\nCopyright © 2026 BitChord contributors")) {
+            send.invoke(arrayOf(options, o.sel_registerName("setObject:forKey:"), text(value), text(key)))
+        }
+        val app = call(o.objc_getClass("NSApplication") ?: return, "sharedApplication") ?: return
+        send.invoke(arrayOf(app, o.sel_registerName("orderFrontStandardAboutPanelWithOptions:"), options))
+    }
+
     private val helperInstance: Pointer? by lazy {
         initHelper()
     }
@@ -99,6 +148,7 @@ internal object DesktopMacFrame {
             o.class_addMethod(cls, sel, callbackRef, "v@:@")
             val selActivate = o.sel_registerName("activateApp:")
             o.class_addMethod(cls, selActivate, activateCallbackRef, "v@:@")
+            o.class_addMethod(cls, o.sel_registerName("showAbout:"), aboutCallbackRef, "v@:@")
             o.objc_registerClassPair(cls)
         }
         val selAlloc = o.sel_registerName("alloc")

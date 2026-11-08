@@ -57,7 +57,7 @@ internal object DesktopWindowMode {
                 if (state.size.height >= 500.dp) savedHeight = state.size.height
                 state.size = DpSize(340.dp, 340.dp)
             }
-            _alwaysOnTop.value = true
+            // Entering MiniPlayer does not pin it above other applications.
         } else {
             if (state != null) {
                 state.size = DpSize(

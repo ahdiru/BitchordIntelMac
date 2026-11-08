@@ -222,6 +222,11 @@ private val MAC_MINIMIZE = Color(0xFFFFBD2E)
 private val MAC_MAXIMIZE = Color(0xFF28C840)
 private val MAC_GLYPH = Color(0xB3000000)
 
+internal object DesktopCaptionDragPolicy {
+    fun shouldStart(platformIsMac: Boolean, windowWasFocused: Boolean): Boolean =
+        !platformIsMac || windowWasFocused
+}
+
 /**
  * A press on empty caption: moves the window, and a second one in quick succession maximizes it,
  * the way the system caption always has.
@@ -238,7 +243,15 @@ private fun Modifier.captionPress(scope: WindowScope, actions: DesktopWindowActi
         var lastPressAt = 0L
         var lastPressPosition = Offset.Zero
         awaitEachGesture {
+            // The first click on an inactive macOS window activates it. Passing that same
+            // mouse-down to performWindowDragWithEvent can make AppKit jump the window to the
+            // pointer instead of treating it as a plain activation click.
+            val windowWasFocused = scope.window.isFocused
             val down = awaitFirstDown()
+            if (!DesktopCaptionDragPolicy.shouldStart(DesktopPlatform.isMac, windowWasFocused)) {
+                lastPressAt = 0L
+                return@awaitEachGesture
+            }
             val double = down.uptimeMillis - lastPressAt <= viewConfiguration.doubleTapTimeoutMillis &&
                 (down.position - lastPressPosition).getDistance() <= viewConfiguration.touchSlop
             if (double) {

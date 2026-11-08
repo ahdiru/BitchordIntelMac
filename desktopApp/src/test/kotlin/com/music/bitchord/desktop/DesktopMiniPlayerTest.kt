@@ -29,11 +29,12 @@ class DesktopMiniPlayerTest {
     @Test
     fun testMiniPlayerToggle() {
         DesktopWindowMode.setMiniPlayer(false)
+        DesktopWindowMode.setAlwaysOnTop(false)
         assertFalse(DesktopWindowMode.miniPlayer.value)
 
         DesktopWindowMode.toggleMiniPlayer()
         assertTrue(DesktopWindowMode.miniPlayer.value)
-        assertTrue(DesktopWindowMode.alwaysOnTop.value)
+        assertFalse(DesktopWindowMode.alwaysOnTop.value)
         assertEquals(WindowPlacement.Floating, DesktopWindowMode.placement.value)
 
         DesktopWindowMode.toggleMiniPlayer()

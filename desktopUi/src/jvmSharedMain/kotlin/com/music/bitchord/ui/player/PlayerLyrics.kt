@@ -758,7 +758,7 @@ private fun rememberLyricClock(
         }
     }
 
-    // Gated on the app being on screen. The loop asks for a frame, writes a
+    // STARTED includes a visible desktop window that is not focused. The loop asks for a frame, writes a
     // value that invalidates a drawing, and is handed the next frame for it —
     // which is a request to render continuously for as long as it runs. That is
     // the right trade for a lyric being read and the wrong one for a phone in a
@@ -770,7 +770,7 @@ private fun rememberLyricClock(
     // One loop for the whole run, reading the playhead itself. Keyed on the
     // reading instead, every reading restarted it, and each restart spent a
     // frame waiting for its first frame time — a hitch twice a second.
-    val foreground = rememberIsForeground()
+    val foreground = rememberIsForeground(visibleWhileUnfocused = true)
     LaunchedEffect(engine, playhead, isPlaying, foreground) {
         if (!isPlaying || !foreground) return@LaunchedEffect
         engine.restart()
@@ -1607,7 +1607,7 @@ internal fun LyricsTranslationMotion(
     content: @Composable (State<Float>?) -> Unit,
 ) {
     val progress = remember { Animatable(1f) }
-    val foreground = rememberIsForeground()
+    val foreground = rememberIsForeground(visibleWhileUnfocused = true)
     // Reopening the panel or returning from the background must not replay a
     // previous toggle. A new toggle cancels the previous effect automatically.
     var consumedTrigger by remember { mutableIntStateOf(trigger) }
