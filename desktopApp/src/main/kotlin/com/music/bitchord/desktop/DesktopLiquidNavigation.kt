@@ -25,7 +25,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.skiaCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -214,7 +214,7 @@ private fun Modifier.desktopLensRefraction(centerX: Float, width: Float, height:
             ImageFilter.makeRuntimeShader(builder, "content", null).use { filter ->
                 Paint().use { paint ->
                     paint.imageFilter = filter
-                    val canvas = drawContext.canvas.skiaCanvas
+                    val canvas = drawContext.canvas.nativeCanvas
                     canvas.saveLayer(null, paint)
                     try { drawContent() } finally { canvas.restore() }
                 }
