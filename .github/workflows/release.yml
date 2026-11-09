@@ -180,6 +180,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - name: Work out the version
         id: version
         run: |
