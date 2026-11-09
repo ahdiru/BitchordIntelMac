@@ -181,7 +181,18 @@ val buildMacMediaNative by tasks.registering {
     onlyIf { targetOs == "macos" }
     doLast {
         if (!hostIsMac) error("The macOS media bridge must be built on macOS")
-        val swiftc = findOnPath("swiftc")?.absolutePath ?: error("swiftc is required for Mac media controls")
+        val swiftc = findOnPath("swiftc") ?: findOnPath("xcrun")?.let { xcrun ->
+            runCatching {
+                val process = ProcessBuilder(xcrun.absolutePath, "--find", "swiftc").start()
+                val compilerPath = process.inputStream.bufferedReader().readText().trim()
+                if (process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0) {
+                    File(compilerPath).takeIf { it.isFile && it.canExecute() }
+                } else {
+                    process.destroyForcibly()
+                    null
+                }
+            }.getOrNull()
+        } ?: error("swiftc is required for Mac media controls (checked PATH and xcrun)")
         val architecture = if (isArm64) "arm64" else "x86_64"
         val destination = output.get().asFile
         destination.parentFile.mkdirs()

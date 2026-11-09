@@ -20,7 +20,7 @@ Date: 2026-11-09
 - Intended destination: `fumakill4/BitChord` (`user-origin`).
 - Repository workflow creates a draft release from the `v2.0.0` tag and builds platform assets in GitHub Actions.
 - Commit `d9b7bf33` and tag `v2.0.0` were pushed to `user-origin`.
-- First Actions run exposed an unsupported ARM64 runner mapping for `macos-14`; the `macos-15` ARM64 label resolved that issue. The Intel runner then failed because the default Xcode toolchain was not selected, so the workflow now selects the latest stable Xcode explicitly before running Gradle.
+- First Actions run exposed an unsupported ARM64 runner mapping for `macos-14`; the `macos-15` ARM64 label resolved that issue. The Intel runner then failed because the default Xcode toolchain was not selected, so the workflow selects stable Xcode and Gradle now falls back to `xcrun --find swiftc` when the compiler is not directly on PATH.
 
 ## Caveat
 - Build and packaging verification passed. Visual behavior of the Liquid Glass pill and Translate hover control has not been runtime-reviewed in this pass.
