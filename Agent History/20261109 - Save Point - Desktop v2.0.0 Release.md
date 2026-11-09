@@ -17,6 +17,7 @@ Date: 2026-11-09 (Asia/Makassar)
 3. Produce a local ARM64 DMG with a v2.0.0 filename; do not overwrite existing user DMGs.
 4. Commit on a topic branch and push to `user-origin` only after validation.
 5. Push `v2.0.0` tag to trigger the repository's release workflow; workflow creates a draft release with desktop assets.
+6. First workflow run found the `macos-14` ARM64 runner mapping unavailable; use the currently documented `macos-15` ARM64 runner and rerun v2.0.0.
 
 ## Known limits
 - The final Liquid Glass and Translate hover behavior requires visual runtime verification; a passing compilation does not establish pixel/interaction parity with Apple Music.
