@@ -202,6 +202,15 @@ jobs:
       - name: Tests
         run: ./gradlew :shared:jvmTest :desktopUi:jvmTest :desktopApp:test -Pbitchord.version=${{ steps.version.outputs.value }}
 
+      - name: Save test reports for diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-test-reports
+          path: desktopApp/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 1
+
       - name: Build DMG, PKG and the app bundle
         run: |
           ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
