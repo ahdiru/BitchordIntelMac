@@ -181,30 +181,30 @@ val buildMacMediaNative by tasks.registering {
     onlyIf { targetOs == "macos" }
     doLast {
         if (!hostIsMac) error("The macOS media bridge must be built on macOS")
-        val swiftc = findOnPath("swiftc") ?: findOnPath("xcrun")?.let { xcrun ->
-            runCatching {
-                val process = ProcessBuilder(xcrun.absolutePath, "--find", "swiftc").start()
-                val compilerPath = process.inputStream.bufferedReader().readText().trim()
-                if (process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0) {
-                    File(compilerPath).takeIf { it.isFile && it.canExecute() }
-                } else {
-                    process.destroyForcibly()
-                    null
-                }
-            }.getOrNull()
-        } ?: error("swiftc is required for Mac media controls (checked PATH and xcrun)")
+        // Invoke Swift through xcrun so its compiler and SDK always come from the same selected
+        // Xcode. A swiftc found earlier on PATH can belong to a different toolchain on CI.
+        val xcrun = findOnPath("xcrun")
+            ?: error("xcrun is required for Mac media controls")
         val architecture = if (isArm64) "arm64" else "x86_64"
         val destination = output.get().asFile
         destination.parentFile.mkdirs()
-        providers.exec {
-            commandLine(
-                swiftc,
-                "-emit-library", "-O", "-module-name", "BitChordMacMedia",
-                "-target", "$architecture-apple-macosx15.0",
-                "-framework", "AppKit", "-framework", "MediaPlayer",
-                source.absolutePath, "-o", destination.absolutePath,
-            )
-        }.result.get().assertNormalExitValue()
+        val command = listOf(
+            xcrun.absolutePath, "--sdk", "macosx", "swiftc",
+            "-emit-library", "-O", "-module-name", "BitChordMacMedia",
+            "-target", "$architecture-apple-macosx15.0",
+            "-framework", "AppKit", "-framework", "MediaPlayer",
+            source.absolutePath, "-o", destination.absolutePath,
+        )
+        val process = ProcessBuilder(command).redirectErrorStream(true).start()
+        val compilerOutput = process.inputStream.bufferedReader().readText()
+        check(process.waitFor(2, TimeUnit.MINUTES)) {
+            process.destroyForcibly()
+            "Timed out compiling Mac media controls with: ${command.joinToString(" ")}"
+        }
+        if (compilerOutput.isNotBlank()) logger.lifecycle(compilerOutput.trimEnd())
+        check(process.exitValue() == 0) {
+            "Swift compiler exited ${process.exitValue()} while building Mac media controls"
+        }
     }
 }
 
