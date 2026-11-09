@@ -104,9 +104,9 @@ internal object DesktopMacFrame {
                 send.invoke(arrayOf(image, o.sel_registerName("release")))
             }
         }
-        val raw = System.getProperty("bitchord.version", "1.9.1-build31")
+        val raw = System.getProperty("bitchord.version", "1.9.1-build33")
         val version = raw.substringBefore("-build").substringBefore(".E")
-        val build = raw.substringAfter("-build", "31")
+        val build = raw.substringAfter("-build", "33")
         for ((key, value) in mapOf("ApplicationVersion" to version, "Version" to "build $build",
             "Copyright" to "this version is created by Chris Tambayong - Fumakill4\n\nCopyright © 2026 BitChord contributors")) {
             send.invoke(arrayOf(options, o.sel_registerName("setObject:forKey:"), text(value), text(key)))
@@ -323,6 +323,7 @@ internal object DesktopMacFrame {
         }
         windowPtr = nsWindow
         installed.set(true)
+        DesktopMacMedia.installTouchBar(nsWindow)
 
         if (isMainThread()) {
             runCatching { applyNativeBackdropOnMainThread(currentBackdropKind) }
@@ -331,6 +332,13 @@ internal object DesktopMacFrame {
         }
         DesktopTrackLog.log("DesktopMacFrame: installed successfully on NSWindow $nsWindow")
         return true
+    }
+
+    /** Installs controls on the current AppKit window once both sides are ready. */
+    fun installTouchBar() {
+        if (!DesktopPlatform.isMac) return
+        val nsWindow = windowPtr ?: findAppKitWindow() ?: return
+        DesktopMacMedia.installTouchBar(nsWindow)
     }
 
     /** Applies or removes the NSVisualEffectView native backdrop blur. */

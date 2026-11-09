@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val appVersion: String = providers.gradleProperty("bitchord.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: (rootProject.extra["bitchordVersionName"] as? String)?.let { "$it-build31" }
+    ?: (rootProject.extra["bitchordVersionName"] as? String)?.let { "$it-build33" }
     ?: "1.9.1"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
@@ -27,7 +27,7 @@ val isArm64 = hostArch == "aarch64" || hostArch == "arm64"
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
 // intentionally displayed without a patch number (1.7 rather than 1.7.0).
 // The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
-val desktopVersionCode = 31
+val desktopVersionCode = Regex("-build(\\d+)$").find(appVersion)?.groupValues?.get(1)?.toIntOrNull() ?: 33
 val nativePackageVersion = if (appVersion.count { it == '.' } >= 2) {
     appVersion.substringBefore('-').substringBefore(".E")
 } else {
@@ -171,6 +171,31 @@ java {
 // Per target, because both write the library under the same name and a Windows cross-build
 // otherwise left a `.dll` where the next Linux run looked for its `.so`.
 val analysisNativeDir = layout.buildDirectory.dir("native/$targetOs")
+
+/** MediaPlayer/AppKit bridge for hardware media keys and the MacBook Touch Bar. */
+val buildMacMediaNative by tasks.registering {
+    val source = project.file("src/main/swift/macos/BitChordMacMedia.swift")
+    val output = analysisNativeDir.map { it.file(System.mapLibraryName("bitchord_macos_media")) }
+    inputs.file(source)
+    outputs.file(output)
+    onlyIf { targetOs == "macos" }
+    doLast {
+        if (!hostIsMac) error("The macOS media bridge must be built on macOS")
+        val swiftc = findOnPath("swiftc")?.absolutePath ?: error("swiftc is required for Mac media controls")
+        val architecture = if (isArm64) "arm64" else "x86_64"
+        val destination = output.get().asFile
+        destination.parentFile.mkdirs()
+        providers.exec {
+            commandLine(
+                swiftc,
+                "-emit-library", "-O", "-module-name", "BitChordMacMedia",
+                "-target", "$architecture-apple-macosx15.0",
+                "-framework", "AppKit", "-framework", "MediaPlayer",
+                source.absolutePath, "-o", destination.absolutePath,
+            )
+        }.result.get().assertNormalExitValue()
+    }
+}
 
 /** The tiny Windows frame bridge is independent of the optional analyser and SMTC libraries. */
 val windowNativeDir = layout.buildDirectory.dir("native-window/$targetOs")
@@ -363,6 +388,7 @@ val buildWindowNative by tasks.registering {
 
 tasks.named<ProcessResources>("processResources") {
     dependsOn(buildAnalysisNative, buildWindowNative)
+    if (targetOs == "macos") dependsOn(buildMacMediaNative)
     from(analysisNativeDir) {
         include("*.so", "*.dll", "*.dylib")
         into("native")

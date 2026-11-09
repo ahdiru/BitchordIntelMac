@@ -1731,6 +1731,20 @@ fun BitChordDesktopApp() {
         )
         onDispose { DesktopWindowsMedia.stop() }
     }
+    // macOS publishes the active track to Apple's Now Playing system, which
+    // routes hardware media keys, and adds playback buttons to the Touch Bar.
+    DisposableEffect(playbackEngine) {
+        DesktopMacMedia.start(
+            DesktopMacMedia.Controller(
+                onPlay = ::playFromUser,
+                onPause = ::pauseFromUser,
+                onPlayPause = ::togglePlayPauseFromUser,
+                onNext = ::playNext,
+                onPrevious = ::playPrevious,
+            ),
+        )
+        onDispose { DesktopMacMedia.stop() }
+    }
 
     LaunchedEffect(playbackSpeed) { playbackEngine.setPlaybackSpeed(playbackSpeed) }
     LaunchedEffect(volume) { playbackEngine.setVolume(volume) }
@@ -1985,6 +1999,7 @@ fun BitChordDesktopApp() {
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs) {
         DesktopScrobbling.onPlaybackStateChanged(playback)
         DesktopWindowsMedia.publish(playback)
+        DesktopMacMedia.publish(playback)
     }
     // Refetched on opening the page rather than cached for the session: the
     // point of it is that something played elsewhere shows up here.
@@ -2955,17 +2970,16 @@ fun BitChordDesktopApp() {
     // footer), raised from the song menu's "More…" and drawn by the shared
     // player. Held here so the desktop song menu can open it.
     val playerOverflowOpen = remember(selectedSong?.videoId) { mutableStateOf(false) }
-    // Requests the song menu sends the player (switch lyrics/queue, translate),
-    // flipped here and consumed by it, and the player's state mirrored back so the
-    // menu's rows say what is on screen. Not keyed to the track: the player's own
-    // panel and translation state outlive a skip, so copies recreated per track
-    // would contradict it until it next changed.
+    // Requests the song menu sends the player to switch lyrics/queue, and the
+    // player's state mirrored back so the menu can show what is on screen.
     val playerLyricsToggle = remember { mutableStateOf(false) }
     val playerLyricsShowing = remember { mutableStateOf(false) }
     val playerQueueToggle = remember { mutableStateOf(false) }
     val playerQueueShowing = remember { mutableStateOf(false) }
     val playerTranslateToggle = remember { mutableStateOf(false) }
     val playerShowingTranslation = remember { mutableStateOf(false) }
+    val playerPronunciationToggle = remember { mutableStateOf(false) }
+    val playerShowingPronunciation = remember { mutableStateOf(false) }
     // Where the player's "…" is, in window coordinates, so its menu hangs off it.
     val playerMenuAnchor = remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
 
@@ -3383,8 +3397,12 @@ fun BitChordDesktopApp() {
                             DesktopPlayerPanelButtons(
                                 lyrics = playerLyricsShowing.value,
                                 queue = playerQueueShowing.value,
+                                translation = playerShowingTranslation.value,
+                                pronunciation = playerShowingPronunciation.value,
                                 onLyrics = { playerLyricsToggle.value = true },
                                 onQueue = { playerQueueToggle.value = true },
+                                onToggleTranslation = { playerTranslateToggle.value = true },
+                                onTogglePronunciation = { playerPronunciationToggle.value = true },
                                 modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
                             )
                         },
@@ -3510,6 +3528,8 @@ fun BitChordDesktopApp() {
                             playerMenuAnchor = playerMenuAnchor,
                             playerTranslateToggle = playerTranslateToggle,
                             playerShowingTranslation = playerShowingTranslation,
+                            playerPronunciationToggle = playerPronunciationToggle,
+                            playerShowingPronunciation = playerShowingPronunciation,
                         )
                         // The sheet's own origin in the window, so the menu below can be
                         // placed on the "…" button the player reports in window terms.
@@ -3568,12 +3588,6 @@ fun BitChordDesktopApp() {
                                         playerQueueToggle.value = true
                                     },
                                     queueShowing = playerQueueShowing.value,
-                                    onTranslate = {
-                                        playerMenuOpen = false
-                                        playerTranslateToggle.value = true
-                                    },
-                                    showingTranslation = playerShowingTranslation.value,
-                                    translateEnabled = !sharedLyrics.isNullOrEmpty(),
                                     lyricsProviders = menuLyricsProviders,
                                     onSelectLyricsProvider = { label -> lyricsOnly = label },
                                     onSearchLyrics = { title, artist -> searchLyrics(title, artist) },
@@ -4815,10 +4829,10 @@ private fun DesktopSidebar(
             DesktopSidebarItem(BitChordIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
                 onDestinationSelected(DesktopDestination.LISTEN_NOW)
             }
-            DesktopSidebarItem(BitChordIcons.Explore, "Explore", destination == DesktopDestination.EXPLORE) {
+            DesktopSidebarItem(BitChordIcons.TabExplore, "Explore", destination == DesktopDestination.EXPLORE) {
                 onDestinationSelected(DesktopDestination.EXPLORE)
             }
-            DesktopSidebarItem(BitChordIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
+            DesktopSidebarItem(BitChordIcons.TabLibrary, "Library", destination == DesktopDestination.LIBRARY) {
                 onDestinationSelected(DesktopDestination.LIBRARY)
             }
             DesktopSidebarItem(BitChordIcons.Search, "Search", destination == DesktopDestination.SEARCH) {

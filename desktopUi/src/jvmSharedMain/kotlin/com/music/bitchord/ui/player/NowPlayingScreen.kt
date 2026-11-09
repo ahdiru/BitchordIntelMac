@@ -768,16 +768,12 @@ fun NowPlayingScreen(
      * draws the menu itself and has to hang it off that button.
      */
     playerMenuAnchor: MutableState<Rect?>? = null,
-    /**
-     * Set true by a host whose song menu shows the translate toggle as its own
-     * row — the desktop player moved it out of the overflow. Read, acted on and
-     * cleared here, so the menu can switch the sheet this screen owns. The
-     * current translation state is mirrored back out through
-     * [playerShowingTranslation] so that menu row can show its checkmark. Left
-     * null the player never receives an outside translate request.
-     */
+    /** Desktop chrome's separate Translate glyph raises this request. */
     playerTranslateToggle: MutableState<Boolean>? = null,
     playerShowingTranslation: MutableState<Boolean>? = null,
+    /** The desktop Translate menu can toggle pronunciation independently. */
+    playerPronunciationToggle: MutableState<Boolean>? = null,
+    playerShowingPronunciation: MutableState<Boolean>? = null,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -1021,16 +1017,18 @@ fun NowPlayingScreen(
         loadingText = lyricsLoadingText,
         haptics = haptics,
     )
-    // A host that shows the translate toggle as a row on its own song menu (the
-    // desktop player moved it out of the overflow) raises it by flipping a flag
-    // in; run the same toggle the button did and take the flag back down, so a
-    // second tap is a second toggle rather than a stuck request. The translation
-    // state is mirrored out so that menu row can show whether it is on.
     LaunchedEffect(playerTranslateToggle?.value) {
         val requested = playerTranslateToggle ?: return@LaunchedEffect
         if (requested.value) {
             requested.value = false
             lyricsTranslation.toggleTranslation()
+        }
+    }
+    LaunchedEffect(playerPronunciationToggle?.value) {
+        val requested = playerPronunciationToggle ?: return@LaunchedEffect
+        if (requested.value) {
+            requested.value = false
+            lyricsTranslation.toggleRomanization()
         }
     }
     // Mirrored after every composition rather than on change: the host's copies
@@ -1039,6 +1037,7 @@ fun NowPlayingScreen(
     // Writing an unchanged value invalidates nothing.
     SideEffect {
         playerShowingTranslation?.value = lyricsTranslation.showingTranslation
+        playerShowingPronunciation?.value = lyricsTranslation.showingRomanization
         playerQueueShowing?.value = queueOpen
     }
     // The drawer holding the finished card, set the moment Share is confirmed.

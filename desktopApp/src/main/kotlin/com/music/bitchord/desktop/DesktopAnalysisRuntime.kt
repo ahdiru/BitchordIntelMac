@@ -65,8 +65,13 @@ internal object DesktopAnalysisRuntime {
      * that knows where the jar keeps them.
      */
     fun loadNative(name: String) {
+        System.load(nativeLibraryPath(name).toString())
+    }
+
+    /** Returns the bundled library's stable extracted path for APIs such as JNA that load by path. */
+    fun nativeLibraryPath(name: String): Path {
         val fileName = System.mapLibraryName(name)
-        System.load(unpack("/native/$fileName", fileName).toString())
+        return unpack("/native/$fileName", fileName)
     }
 
     /** The absolute path of a model, unpacked on first use. */
