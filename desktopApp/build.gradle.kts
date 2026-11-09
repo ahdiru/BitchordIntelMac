@@ -89,8 +89,10 @@ dependencies {
     // The shared player loads artwork through Coil, as the phone does.
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
 
-    // Automix runs the same two models the Android build does.
-    implementation("com.microsoft.onnxruntime:onnxruntime:1.29.0")
+    // Automix runs the same two models the Android build does. ONNX Runtime 1.29.0 no longer
+    // bundles its native macOS x86_64 library, so Intel Macs keep the last runtime with that slice.
+    val onnxRuntimeVersion = if (targetOs == "macos" && !isArm64) "1.20.0" else "1.29.0"
+    implementation("com.microsoft.onnxruntime:onnxruntime:$onnxRuntimeVersion")
 
     // Decoding, resampling and demuxing for the audio engine.
     implementation("org.bytedeco:javacpp:$javacppVersion")
