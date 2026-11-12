@@ -1741,6 +1741,12 @@ fun BitChordDesktopApp() {
                 onPlayPause = ::togglePlayPauseFromUser,
                 onNext = ::playNext,
                 onPrevious = ::playPrevious,
+                onToggleLyrics = {
+                    if (selectedSong != null) {
+                        if (overlays.nowPlaying) overlays.nowPlaying = false
+                        overlays.toggleSidePanel(DesktopSidePanel.LYRICS)
+                    }
+                },
             ),
         )
         onDispose { DesktopMacMedia.stop() }
@@ -3063,6 +3069,51 @@ fun BitChordDesktopApp() {
     val sharedLyrics = lyrics?.lines
     val sharedLyricsSource = remember(lyrics) { lyrics?.source?.let(::lyricsSourceNamed) }
     val sharedLyricsUnavailable = !lyricsLoading && sharedLyrics.isNullOrEmpty()
+    LaunchedEffect(
+        playbackEngine,
+        playback.song?.videoId,
+        selectedSong?.videoId,
+        playback.isPlaying,
+        playback.awaitingAudio,
+        playbackSpeed,
+        sharedLyrics,
+        syncedLyrics,
+        lyricsOffsetMs,
+    ) {
+        if (!DesktopPlatform.isMac) return@LaunchedEffect
+        val song = playback.song ?: selectedSong
+        val isSynced = syncedLyrics && !sharedLyrics.isNullOrEmpty() && sharedLyrics.any { it.timeMs > 0L }
+        fun pushNow() {
+            val livePos = if (playback.isPlaying && !playback.awaitingAudio && playerPosition.sampledAtNanos > 0L) {
+                val elapsed = ((System.nanoTime() - playerPosition.sampledAtNanos).coerceAtLeast(0L) *
+                    playbackSpeed / 1_000_000.0).toLong()
+                playerPosition.positionMs + elapsed
+            } else {
+                playerPosition.positionMs
+            }
+            DesktopMacMedia.publishLyric(
+                DesktopMacMedia.resolveLyric(
+                    song = song,
+                    lines = sharedLyrics,
+                    positionMs = livePos,
+                    lyricsOffsetMs = lyricsOffsetMs.toLong(),
+                    syncedLyricsEnabled = syncedLyrics,
+                ),
+            )
+        }
+        pushNow()
+        if (!isSynced) return@LaunchedEffect
+        if (playback.isPlaying && !playback.awaitingAudio) {
+            while (true) {
+                delay(65L)
+                pushNow()
+            }
+        } else {
+            snapshotFlow { playerPosition.positionMs to playerPosition.seeks }.collect {
+                pushNow()
+            }
+        }
+    }
     val providerStates = remember(lyricsOrder, lyricsOn, sharedLyricsSource, lyricsLoading) {
         DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn)
             .mapNotNull(::lyricsSourceNamed)

@@ -10,30 +10,176 @@ private enum BitChordMediaState {
     static var artworkTask: Task<Void, Never>?
     static var window: NSWindow?
     static var touchBarDelegate: BitChordTouchBarDelegate?
+    static var lastLyricText: String = ""
+    static var lastRevealedChars: Int = -1
+    static var lastInstrumental: Bool = false
 }
 
 private final class BitChordTouchBarTarget: NSObject {
     @objc func previous(_ sender: Any?) { BitChordMediaState.action?(4) }
     @objc func playPause(_ sender: Any?) { BitChordMediaState.action?(2) }
     @objc func next(_ sender: Any?) { BitChordMediaState.action?(3) }
+    @objc func lyricTapped(_ sender: Any?) { BitChordMediaState.action?(5) }
+}
+
+private final class BitChordTouchBarLyricView: NSView {
+    private let label = NSTextField(labelWithString: "")
+    private var currentText: String = ""
+    private var currentRevealedChars: Int = -1
+    private var currentInstrumental: Bool = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        translatesAutoresizingMaskIntoConstraints = false
+        wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.masksToBounds = true
+        layer?.backgroundColor = NSColor(white: 1.0, alpha: 0.08).cgColor
+
+        label.isEditable = false
+        label.isBezeled = false
+        label.drawsBackground = false
+        label.usesSingleLineMode = true
+        label.maximumNumberOfLines = 1
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = true
+        addSubview(label)
+
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        heightAnchor.constraint(equalToConstant: 30).isActive = true
+        let minWidth = widthAnchor.constraint(greaterThanOrEqualToConstant: 160)
+        minWidth.priority = .defaultLow
+        minWidth.isActive = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(text: String, revealedChars: Int, instrumental: Bool) {
+        currentText = text
+        currentRevealedChars = revealedChars
+        currentInstrumental = instrumental
+
+        let baseFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+        let sungFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        let fullLength = (text as NSString).length
+        let attr = NSMutableAttributedString(
+            string: text,
+            attributes: [
+                .font: baseFont,
+                .foregroundColor: instrumental
+                    ? NSColor(white: 1.0, alpha: 0.55)
+                    : (revealedChars >= 0
+                        ? NSColor(white: 1.0, alpha: 0.45)
+                        : NSColor(white: 1.0, alpha: 0.92)),
+            ]
+        )
+
+        if !instrumental && revealedChars > 0 && fullLength > 0 {
+            let clamped = min(revealedChars, fullLength)
+            let sungRange = NSRange(location: 0, length: clamped)
+            attr.addAttributes(
+                [
+                    .font: sungFont,
+                    .foregroundColor: NSColor.white,
+                ],
+                range: sungRange
+            )
+        }
+
+        label.attributedStringValue = attr
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let padX: CGFloat = 10
+        let availWidth = max(0, bounds.width - padX * 2)
+        let attr = label.attributedStringValue
+        let fullSize = attr.size()
+        let labelHeight = max(16, ceil(fullSize.height))
+        let y = floor((bounds.height - labelHeight) * 0.5)
+
+        if fullSize.width <= availWidth {
+            label.lineBreakMode = .byTruncatingTail
+            let x = padX + floor((availWidth - fullSize.width) * 0.5)
+            label.frame = NSRect(x: x, y: y, width: ceil(fullSize.width) + 2, height: labelHeight)
+        } else if currentRevealedChars > 0 && !currentInstrumental {
+            let fullLength = (currentText as NSString).length
+            let clamped = min(currentRevealedChars, fullLength)
+            let prefix = attr.attributedSubstring(from: NSRange(location: 0, length: clamped))
+            let sungWidth = prefix.size().width
+            let maxShift = max(0, fullSize.width - availWidth)
+            let shift = min(maxShift, max(0, sungWidth - availWidth * 0.6))
+            label.lineBreakMode = .byClipping
+            label.frame = NSRect(x: padX - shift, y: y, width: ceil(fullSize.width) + 4, height: labelHeight)
+        } else {
+            label.lineBreakMode = .byTruncatingTail
+            label.frame = NSRect(x: padX, y: y, width: availWidth, height: labelHeight)
+        }
+    }
 }
 
 private final class BitChordTouchBarDelegate: NSObject, NSTouchBarDelegate {
     static let previousID = NSTouchBarItem.Identifier("com.music.bitchord.previous")
     static let playPauseID = NSTouchBarItem.Identifier("com.music.bitchord.play-pause")
     static let nextID = NSTouchBarItem.Identifier("com.music.bitchord.next")
+    static let lyricID = NSTouchBarItem.Identifier("com.music.bitchord.lyric")
 
     let target = BitChordTouchBarTarget()
     var playing = false
+    var canNext = true
+    var canPrevious = true
+
+    private var previousButton: NSButton?
+    private var playPauseButton: NSButton?
+    private var nextButton: NSButton?
+    private var lyricView: BitChordTouchBarLyricView?
 
     func makeTouchBar() -> NSTouchBar {
         let bar = NSTouchBar()
         bar.delegate = self
-        bar.defaultItemIdentifiers = [Self.previousID, Self.playPauseID, Self.nextID]
+        bar.defaultItemIdentifiers = [Self.previousID, Self.playPauseID, Self.nextID, Self.lyricID]
         return bar
     }
 
+    func updateTransport(isPlaying: Bool, canNext: Bool, canPrevious: Bool) {
+        self.playing = isPlaying
+        self.canNext = canNext
+        self.canPrevious = canPrevious
+
+        if let playPauseButton {
+            let symbol = isPlaying ? "pause.fill" : "play.fill"
+            let description = isPlaying ? "Pause" : "Play"
+            playPauseButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: description) ?? NSImage()
+        }
+        previousButton?.isEnabled = canPrevious
+        nextButton?.isEnabled = canNext
+    }
+
+    func updateLyric(text: String, revealedChars: Int, instrumental: Bool) {
+        lyricView?.update(text: text, revealedChars: revealedChars, instrumental: instrumental)
+    }
+
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
+        if identifier == Self.lyricID {
+            let item = NSCustomTouchBarItem(identifier: identifier)
+            let view = BitChordTouchBarLyricView(frame: .zero)
+            let click = NSClickGestureRecognizer(target: target, action: #selector(BitChordTouchBarTarget.lyricTapped(_:)))
+            view.addGestureRecognizer(click)
+            view.update(
+                text: BitChordMediaState.lastLyricText,
+                revealedChars: BitChordMediaState.lastRevealedChars,
+                instrumental: BitChordMediaState.lastInstrumental
+            )
+            lyricView = view
+            item.view = view
+            return item
+        }
+
         let item = NSCustomTouchBarItem(identifier: identifier)
         let symbol: String
         let description: String
@@ -57,6 +203,20 @@ private final class BitChordTouchBarDelegate: NSObject, NSTouchBarDelegate {
         let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description) ?? NSImage()
         let button = NSButton(image: image, target: target, action: selector)
         button.bezelStyle = .texturedRounded
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentCompressionResistancePriority(.required, for: .horizontal)
+        switch identifier {
+        case Self.previousID:
+            button.isEnabled = canPrevious
+            previousButton = button
+        case Self.playPauseID:
+            playPauseButton = button
+        case Self.nextID:
+            button.isEnabled = canNext
+            nextButton = button
+        default:
+            break
+        }
         item.view = button
         return item
     }
@@ -122,6 +282,8 @@ public func bitchordMacMediaUpdate(
     let album = albumPointer.map(String.init(cString:)) ?? ""
     let artworkURL = artworkURLPointer.flatMap { URL(string: String(cString: $0)) }
     let isPlaying = isPlayingValue != 0
+    let canNext = canNextValue != 0
+    let canPrevious = canPreviousValue != 0
     let position = max(0, Double(positionMilliseconds) / 1_000)
     let duration = max(0, Double(durationMilliseconds) / 1_000)
 
@@ -131,14 +293,19 @@ public func bitchordMacMediaUpdate(
             BitChordMediaState.artworkTask?.cancel()
             center.nowPlayingInfo = nil
             center.playbackState = .stopped
+            BitChordMediaState.lastLyricText = ""
+            BitChordMediaState.lastRevealedChars = -1
+            BitChordMediaState.lastInstrumental = false
+            BitChordMediaState.touchBarDelegate?.updateLyric(text: "", revealedChars: -1, instrumental: false)
             BitChordMediaState.window?.touchBar = nil
             return
         }
 
-        BitChordMediaState.touchBarDelegate?.playing = isPlaying
-        if let delegate = BitChordMediaState.touchBarDelegate,
-           let window = BitChordMediaState.window {
-            window.touchBar = delegate.makeTouchBar()
+        if let delegate = BitChordMediaState.touchBarDelegate {
+            delegate.updateTransport(isPlaying: isPlaying, canNext: canNext, canPrevious: canPrevious)
+            if let window = BitChordMediaState.window, window.touchBar == nil {
+                window.touchBar = delegate.makeTouchBar()
+            }
         }
 
         let info: [String: Any] = [
@@ -153,8 +320,8 @@ public func bitchordMacMediaUpdate(
         center.nowPlayingInfo = info
         center.playbackState = isPlaying ? .playing : .paused
         let commands = MPRemoteCommandCenter.shared()
-        commands.nextTrackCommand.isEnabled = canNextValue != 0
-        commands.previousTrackCommand.isEnabled = canPreviousValue != 0
+        commands.nextTrackCommand.isEnabled = canNext
+        commands.previousTrackCommand.isEnabled = canPrevious
 
         BitChordMediaState.artworkTask?.cancel()
         guard let artworkURL else { return }
@@ -167,6 +334,28 @@ public func bitchordMacMediaUpdate(
             updatedInfo[MPMediaItemPropertyArtwork] = artwork
             center.nowPlayingInfo = updatedInfo
         }
+    }
+}
+
+@_cdecl("bitchord_macos_media_update_lyric")
+public func bitchordMacMediaUpdateLyric(
+    _ textPointer: UnsafePointer<CChar>?,
+    _ revealedCharsValue: Int32,
+    _ isInstrumentalValue: Int32
+) {
+    let text = textPointer.map(String.init(cString:)) ?? ""
+    let revealedChars = Int(revealedCharsValue)
+    let instrumental = isInstrumentalValue != 0
+
+    onMain {
+        BitChordMediaState.lastLyricText = text
+        BitChordMediaState.lastRevealedChars = revealedChars
+        BitChordMediaState.lastInstrumental = instrumental
+        BitChordMediaState.touchBarDelegate?.updateLyric(
+            text: text,
+            revealedChars: revealedChars,
+            instrumental: instrumental
+        )
     }
 }
 
@@ -189,6 +378,9 @@ public func bitchordMacMediaStop() {
         BitChordMediaState.action = nil
         BitChordMediaState.artworkTask?.cancel()
         BitChordMediaState.artworkTask = nil
+        BitChordMediaState.lastLyricText = ""
+        BitChordMediaState.lastRevealedChars = -1
+        BitChordMediaState.lastInstrumental = false
         BitChordMediaState.window?.touchBar = nil
         BitChordMediaState.window = nil
         BitChordMediaState.touchBarDelegate = nil

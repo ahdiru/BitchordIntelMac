@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.data.lyrics.LyricLine
+import com.music.bitchord.data.model.Song
 import com.sun.jna.Callback
 import com.sun.jna.Library
 import com.sun.jna.Native
@@ -10,6 +12,17 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** macOS Now Playing and Touch Bar controls backed by MediaPlayer and AppKit. */
 internal object DesktopMacMedia {
+    internal data class TouchBarLyric(
+        val text: String,
+        /** Character count already sung when word-synced, or `-1` for line-synced / fallback text. */
+        val revealedChars: Int = -1,
+        val isInstrumental: Boolean = false,
+    ) {
+        companion object {
+            val EMPTY = TouchBarLyric("")
+        }
+    }
+
     private interface NativeApi : Library {
         fun bitchord_macos_media_start(action: ButtonCallback): Int
         fun bitchord_macos_media_install_touch_bar(window: Pointer?): Int
@@ -24,6 +37,11 @@ internal object DesktopMacMedia {
             canNext: Int,
             canPrevious: Int,
         )
+        fun bitchord_macos_media_update_lyric(
+            text: String,
+            revealedChars: Int,
+            isInstrumental: Int,
+        )
         fun bitchord_macos_media_stop()
     }
 
@@ -37,6 +55,7 @@ internal object DesktopMacMedia {
         val onPlayPause: () -> Unit,
         val onNext: () -> Unit,
         val onPrevious: () -> Unit,
+        val onToggleLyrics: () -> Unit = {},
     )
 
     private val started = AtomicBoolean(false)
@@ -44,6 +63,7 @@ internal object DesktopMacMedia {
     @Volatile private var controller: Controller? = null
     @Volatile private var buttonCallback: ButtonCallback? = null
     @Volatile private var nativeApi: NativeApi? = null
+    @Volatile private var lastPublishedLyric: TouchBarLyric? = null
 
     private fun api(): NativeApi? {
         nativeApi?.let { return it }
@@ -101,9 +121,57 @@ internal object DesktopMacMedia {
         }.onFailure { DesktopTrackLog.log("macOS Now Playing update failed: ${it.message}") }
     }
 
+    /** Resolves the lyric line (and word-sync progress) to show on the Touch Bar at [positionMs]. */
+    internal fun resolveLyric(
+        song: Song?,
+        lines: List<LyricLine>?,
+        positionMs: Long,
+        lyricsOffsetMs: Long,
+        syncedLyricsEnabled: Boolean,
+    ): TouchBarLyric {
+        if (song == null) return TouchBarLyric.EMPTY
+        val fallback = if (song.artist.isNotBlank()) "${song.title} — ${song.artist}" else song.title
+        if (!syncedLyricsEnabled || lines.isNullOrEmpty() || lines.none { it.timeMs > 0L }) {
+            return TouchBarLyric(text = fallback)
+        }
+        val clockMs = (positionMs + lyricsOffsetMs).coerceAtLeast(0L)
+        val activeIndex = lines.indexOfLast { it.timeMs <= clockMs }
+        if (activeIndex < 0) {
+            return TouchBarLyric(text = "♪ $fallback", isInstrumental = true)
+        }
+        val line = lines[activeIndex]
+        if (line.isGap || line.text.isBlank()) {
+            return TouchBarLyric(text = "♪ • • •", isInstrumental = true)
+        }
+        val revealed = if (line.isWordSynced) {
+            line.revealedChars(clockMs).toInt().coerceIn(0, line.text.length)
+        } else {
+            -1
+        }
+        return TouchBarLyric(
+            text = line.text,
+            revealedChars = revealed,
+            isInstrumental = false,
+        )
+    }
+
+    fun publishLyric(lyric: TouchBarLyric) {
+        if (!started.get()) return
+        if (lyric == lastPublishedLyric) return
+        lastPublishedLyric = lyric
+        runCatching {
+            api()?.bitchord_macos_media_update_lyric(
+                text = lyric.text,
+                revealedChars = lyric.revealedChars,
+                isInstrumental = if (lyric.isInstrumental) 1 else 0,
+            )
+        }.onFailure { DesktopTrackLog.log("macOS Touch Bar lyric update failed: ${it.message}") }
+    }
+
     fun stop() {
         if (!started.compareAndSet(true, false)) return
         controller = null
+        lastPublishedLyric = null
         runCatching { api()?.bitchord_macos_media_stop() }
         buttonCallback = null
     }
@@ -117,6 +185,7 @@ internal object DesktopMacMedia {
                 2 -> target.onPlayPause()
                 3 -> target.onNext()
                 4 -> target.onPrevious()
+                5 -> target.onToggleLyrics()
             }
         }
     }
