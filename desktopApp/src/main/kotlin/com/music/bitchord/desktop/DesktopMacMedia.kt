@@ -24,7 +24,7 @@ internal object DesktopMacMedia {
     }
 
     private interface NativeApi : Library {
-        fun bitchord_macos_media_start(action: ButtonCallback): Int
+        fun bitchord_macos_media_start(action: ButtonCallback, seek: SeekCallback): Int
         fun bitchord_macos_media_install_touch_bar(window: Pointer?): Int
         fun bitchord_macos_media_update(
             title: String,
@@ -32,6 +32,7 @@ internal object DesktopMacMedia {
             album: String,
             artworkURL: String,
             isPlaying: Int,
+            playbackRate: Float,
             positionMs: Long,
             durationMs: Long,
             canNext: Int,
@@ -49,12 +50,17 @@ internal object DesktopMacMedia {
         fun invoke(button: Int)
     }
 
+    private fun interface SeekCallback : Callback {
+        fun invoke(positionMs: Long)
+    }
+
     internal class Controller(
         val onPlay: () -> Unit,
         val onPause: () -> Unit,
         val onPlayPause: () -> Unit,
         val onNext: () -> Unit,
         val onPrevious: () -> Unit,
+        val onSeek: (Long) -> Unit = {},
         val onToggleLyrics: () -> Unit = {},
     )
 
@@ -62,6 +68,7 @@ internal object DesktopMacMedia {
     private val shutdownHookAdded = AtomicBoolean(false)
     @Volatile private var controller: Controller? = null
     @Volatile private var buttonCallback: ButtonCallback? = null
+    @Volatile private var seekCallback: SeekCallback? = null
     @Volatile private var nativeApi: NativeApi? = null
     @Volatile private var lastPublishedLyric: TouchBarLyric? = null
 
@@ -84,9 +91,12 @@ internal object DesktopMacMedia {
             return
         }
         val callback = ButtonCallback { button -> dispatchButton(button) }
+        val onSeekCallback = SeekCallback { positionMs -> dispatchSeek(positionMs) }
         buttonCallback = callback
-        if (native.bitchord_macos_media_start(callback) == 0) {
+        seekCallback = onSeekCallback
+        if (native.bitchord_macos_media_start(callback, onSeekCallback) == 0) {
             buttonCallback = null
+            seekCallback = null
             started.set(false)
             DesktopTrackLog.log("macOS Now Playing command center could not start")
             return
@@ -103,9 +113,24 @@ internal object DesktopMacMedia {
             .onFailure { DesktopTrackLog.log("macOS Touch Bar unavailable: ${it.message}") }
     }
 
-    fun publish(state: DesktopPlaybackState) {
+    internal fun resolvePlaybackRate(
+        isPlaying: Boolean,
+        awaitingAudio: Boolean,
+        playbackSpeed: Float,
+    ): Float = if (isPlaying && !awaitingAudio) playbackSpeed.coerceIn(0.25f, 3.0f) else 0.0f
+
+    internal fun clampPositionMs(positionMs: Long, durationMs: Long): Long =
+        if (durationMs > 0L) positionMs.coerceIn(0L, durationMs) else positionMs.coerceAtLeast(0L)
+
+    fun publish(state: DesktopPlaybackState, playbackSpeed: Float = 1.0f) {
         if (!started.get()) return
         val song = state.song
+        val positionMs = clampPositionMs(state.positionMs, state.durationMs)
+        val rate = resolvePlaybackRate(
+            isPlaying = state.isPlaying,
+            awaitingAudio = state.awaitingAudio,
+            playbackSpeed = playbackSpeed,
+        )
         runCatching {
             api()?.bitchord_macos_media_update(
                 title = song?.title.orEmpty(),
@@ -113,7 +138,8 @@ internal object DesktopMacMedia {
                 album = song?.albumName.orEmpty(),
                 artworkURL = song?.thumbnailUrl.orEmpty(),
                 isPlaying = if (state.isPlaying) 1 else 0,
-                positionMs = state.positionMs,
+                playbackRate = rate,
+                positionMs = positionMs,
                 durationMs = state.durationMs,
                 canNext = if (song == null) 0 else 1,
                 canPrevious = if (song == null) 0 else 1,
@@ -174,6 +200,7 @@ internal object DesktopMacMedia {
         lastPublishedLyric = null
         runCatching { api()?.bitchord_macos_media_stop() }
         buttonCallback = null
+        seekCallback = null
     }
 
     private fun dispatchButton(button: Int) {
@@ -187,6 +214,13 @@ internal object DesktopMacMedia {
                 4 -> target.onPrevious()
                 5 -> target.onToggleLyrics()
             }
+        }
+    }
+
+    private fun dispatchSeek(positionMs: Long) {
+        EventQueue.invokeLater {
+            val target = controller ?: return@invokeLater
+            target.onSeek(positionMs.coerceAtLeast(0L))
         }
     }
 

@@ -123,4 +123,15 @@ class DesktopTouchBarLyricsTest {
         )
         assertEquals("Hello world".length, afterLine.revealedChars)
     }
+
+    @Test
+    fun `resolves Now Playing playback rate and clamps position for scrubber sync`() {
+        assertEquals(0.0f, DesktopMacMedia.resolvePlaybackRate(isPlaying = false, awaitingAudio = false, playbackSpeed = 1.5f))
+        assertEquals(0.0f, DesktopMacMedia.resolvePlaybackRate(isPlaying = true, awaitingAudio = true, playbackSpeed = 1.5f))
+        assertEquals(1.5f, DesktopMacMedia.resolvePlaybackRate(isPlaying = true, awaitingAudio = false, playbackSpeed = 1.5f))
+
+        assertEquals(0L, DesktopMacMedia.clampPositionMs(positionMs = -250L, durationMs = 180_000L))
+        assertEquals(180_000L, DesktopMacMedia.clampPositionMs(positionMs = 200_000L, durationMs = 180_000L))
+        assertEquals(42_000L, DesktopMacMedia.clampPositionMs(positionMs = 42_000L, durationMs = 0L))
+    }
 }

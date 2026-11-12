@@ -3,11 +3,16 @@ import Foundation
 import MediaPlayer
 
 public typealias BitChordMediaAction = @convention(c) (Int32) -> Void
+public typealias BitChordSeekAction = @convention(c) (Int64) -> Void
 
 private enum BitChordMediaState {
     static var action: BitChordMediaAction?
-    static var commandTokens: [Any] = []
+    static var seekAction: BitChordSeekAction?
+    static var commandRegistrations: [(MPRemoteCommand, Any)] = []
     static var artworkTask: Task<Void, Never>?
+    static var cachedArtworkURL: URL?
+    static var cachedArtwork: MPMediaItemArtwork?
+    static var currentArtworkURL: URL?
     static var window: NSWindow?
     static var touchBarDelegate: BitChordTouchBarDelegate?
     static var lastLyricText: String = ""
@@ -226,10 +231,23 @@ private func onMain(_ action: @escaping () -> Void) {
     if Thread.isMainThread { action() } else { DispatchQueue.main.async(execute: action) }
 }
 
+private func unregisterRemoteCommands() {
+    for (command, token) in BitChordMediaState.commandRegistrations {
+        command.removeTarget(token)
+        command.isEnabled = false
+    }
+    BitChordMediaState.commandRegistrations.removeAll()
+}
+
 @_cdecl("bitchord_macos_media_start")
-public func bitchordMacMediaStart(_ action: @escaping BitChordMediaAction) -> Int32 {
+public func bitchordMacMediaStart(
+    _ action: @escaping BitChordMediaAction,
+    _ seekAction: @escaping BitChordSeekAction
+) -> Int32 {
     onMain {
+        unregisterRemoteCommands()
         BitChordMediaState.action = action
+        BitChordMediaState.seekAction = seekAction
         let center = MPRemoteCommandCenter.shared()
         let commands: [(MPRemoteCommand, Int32)] = [
             (center.playCommand, 0),
@@ -238,13 +256,31 @@ public func bitchordMacMediaStart(_ action: @escaping BitChordMediaAction) -> In
             (center.nextTrackCommand, 3),
             (center.previousTrackCommand, 4),
         ]
-        BitChordMediaState.commandTokens = commands.map { command, button in
+        var registrations: [(MPRemoteCommand, Any)] = commands.map { command, button in
             command.isEnabled = true
-            return command.addTarget { _ in
+            let token = command.addTarget { _ in
                 BitChordMediaState.action?(button)
                 return .success
             }
+            return (command, token)
         }
+        center.changePlaybackPositionCommand.isEnabled = true
+        let seekToken = center.changePlaybackPositionCommand.addTarget { event in
+            guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            let clampedSeconds = max(0, positionEvent.positionTime)
+            let positionMs = Int64((clampedSeconds * 1_000).rounded())
+            let nowPlaying = MPNowPlayingInfoCenter.default()
+            if var info = nowPlaying.nowPlayingInfo {
+                info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = clampedSeconds
+                nowPlaying.nowPlayingInfo = info
+            }
+            BitChordMediaState.seekAction?(positionMs)
+            return .success
+        }
+        registrations.append((center.changePlaybackPositionCommand, seekToken))
+        BitChordMediaState.commandRegistrations = registrations
         if let window = BitChordMediaState.window {
             _ = bitchordMacMediaInstallTouchBar(Unmanaged.passUnretained(window).toOpaque())
         }
@@ -272,6 +308,7 @@ public func bitchordMacMediaUpdate(
     _ albumPointer: UnsafePointer<CChar>?,
     _ artworkURLPointer: UnsafePointer<CChar>?,
     _ isPlayingValue: Int32,
+    _ playbackRateValue: Float,
     _ positionMilliseconds: Int64,
     _ durationMilliseconds: Int64,
     _ canNextValue: Int32,
@@ -282,17 +319,25 @@ public func bitchordMacMediaUpdate(
     let album = albumPointer.map(String.init(cString:)) ?? ""
     let artworkURL = artworkURLPointer.flatMap { URL(string: String(cString: $0)) }
     let isPlaying = isPlayingValue != 0
+    let playbackRate = max(0.0, Double(playbackRateValue))
     let canNext = canNextValue != 0
     let canPrevious = canPreviousValue != 0
-    let position = max(0, Double(positionMilliseconds) / 1_000)
     let duration = max(0, Double(durationMilliseconds) / 1_000)
+    let rawPosition = max(0, Double(positionMilliseconds) / 1_000)
+    let position = duration > 0 ? min(rawPosition, duration) : rawPosition
 
     onMain {
         let center = MPNowPlayingInfoCenter.default()
+        let commands = MPRemoteCommandCenter.shared()
         if title.isEmpty {
             BitChordMediaState.artworkTask?.cancel()
+            BitChordMediaState.artworkTask = nil
+            BitChordMediaState.currentArtworkURL = nil
+            BitChordMediaState.cachedArtworkURL = nil
+            BitChordMediaState.cachedArtwork = nil
             center.nowPlayingInfo = nil
             center.playbackState = .stopped
+            commands.changePlaybackPositionCommand.isEnabled = false
             BitChordMediaState.lastLyricText = ""
             BitChordMediaState.lastRevealedChars = -1
             BitChordMediaState.lastInstrumental = false
@@ -308,31 +353,52 @@ public func bitchordMacMediaUpdate(
             }
         }
 
-        let info: [String: Any] = [
+        BitChordMediaState.currentArtworkURL = artworkURL
+        var info: [String: Any] = [
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyArtist: artist,
             MPMediaItemPropertyAlbumTitle: album,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: playbackRate,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
         ]
-        center.nowPlayingInfo = info
+        if let artworkURL, artworkURL == BitChordMediaState.cachedArtworkURL,
+           let cachedArtwork = BitChordMediaState.cachedArtwork {
+            info[MPMediaItemPropertyArtwork] = cachedArtwork
+            center.nowPlayingInfo = info
+        } else {
+            center.nowPlayingInfo = info
+        }
         center.playbackState = isPlaying ? .playing : .paused
-        let commands = MPRemoteCommandCenter.shared()
         commands.nextTrackCommand.isEnabled = canNext
         commands.previousTrackCommand.isEnabled = canPrevious
+        commands.changePlaybackPositionCommand.isEnabled = duration > 0
 
+        guard let artworkURL else {
+            BitChordMediaState.artworkTask?.cancel()
+            BitChordMediaState.artworkTask = nil
+            return
+        }
+        if artworkURL == BitChordMediaState.cachedArtworkURL,
+           BitChordMediaState.cachedArtwork != nil {
+            return
+        }
         BitChordMediaState.artworkTask?.cancel()
-        guard let artworkURL else { return }
         BitChordMediaState.artworkTask = Task {
             guard let (data, _) = try? await URLSession.shared.data(from: artworkURL),
                   !Task.isCancelled,
                   let image = NSImage(data: data) else { return }
             let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-            var updatedInfo = info
-            updatedInfo[MPMediaItemPropertyArtwork] = artwork
-            center.nowPlayingInfo = updatedInfo
+            onMain {
+                guard BitChordMediaState.currentArtworkURL == artworkURL else { return }
+                BitChordMediaState.cachedArtworkURL = artworkURL
+                BitChordMediaState.cachedArtwork = artwork
+                var current = center.nowPlayingInfo ?? info
+                current[MPMediaItemPropertyArtwork] = artwork
+                center.nowPlayingInfo = current
+            }
         }
     }
 }
@@ -362,22 +428,14 @@ public func bitchordMacMediaUpdateLyric(
 @_cdecl("bitchord_macos_media_stop")
 public func bitchordMacMediaStop() {
     onMain {
-        let center = MPRemoteCommandCenter.shared()
-        let commands: [MPRemoteCommand] = [
-            center.playCommand,
-            center.pauseCommand,
-            center.togglePlayPauseCommand,
-            center.nextTrackCommand,
-            center.previousTrackCommand,
-        ]
-        for (command, token) in zip(commands, BitChordMediaState.commandTokens) {
-            command.removeTarget(token)
-            command.isEnabled = false
-        }
-        BitChordMediaState.commandTokens.removeAll()
+        unregisterRemoteCommands()
         BitChordMediaState.action = nil
+        BitChordMediaState.seekAction = nil
         BitChordMediaState.artworkTask?.cancel()
         BitChordMediaState.artworkTask = nil
+        BitChordMediaState.currentArtworkURL = nil
+        BitChordMediaState.cachedArtworkURL = nil
+        BitChordMediaState.cachedArtwork = nil
         BitChordMediaState.lastLyricText = ""
         BitChordMediaState.lastRevealedChars = -1
         BitChordMediaState.lastInstrumental = false

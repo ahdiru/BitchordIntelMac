@@ -1741,6 +1741,12 @@ fun BitChordDesktopApp() {
                 onPlayPause = ::togglePlayPauseFromUser,
                 onNext = ::playNext,
                 onPrevious = ::playPrevious,
+                onSeek = { positionMs ->
+                    if (!DesktopListenTogether.state.value.controlsLocked) {
+                        playbackEngine.seekTo(positionMs)
+                        partySync.onLocalIntent()
+                    }
+                },
                 onToggleLyrics = {
                     if (selectedSong != null) {
                         if (overlays.nowPlaying) overlays.nowPlaying = false
@@ -2005,7 +2011,16 @@ fun BitChordDesktopApp() {
     LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs) {
         DesktopScrobbling.onPlaybackStateChanged(playback)
         DesktopWindowsMedia.publish(playback)
-        DesktopMacMedia.publish(playback)
+    }
+    LaunchedEffect(
+        playback.song?.videoId,
+        playback.isPlaying,
+        playback.durationMs,
+        playback.seeks,
+        playback.awaitingAudio,
+        playbackSpeed,
+    ) {
+        DesktopMacMedia.publish(playback, playbackSpeed)
     }
     // Refetched on opening the page rather than cached for the session: the
     // point of it is that something played elsewhere shows up here.
