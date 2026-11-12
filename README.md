@@ -2,119 +2,102 @@
 
 <img src="Logo.png" alt="BitChord app icon" width="128" height="128">
 
-# BitChord for Apple
+# BitChord for Intel Mac (`x86_64`)
 
-**An open-source, native music client for Mac, iPhone and iPad.**<br>
-YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
+**An open-source, native YouTube Music & Hi-Res audio client rebuilt for Intel-based MacBook Pro.**<br>
+YouTube Music, local library, DJ-style Automix, bit-perfect audio, and live synced Touch Bar lyrics.
 
 <br>
 
-[![Release](https://img.shields.io/github/v/release/fumakill4/BitChord?style=for-the-badge&label=release&color=2F81F7)](https://github.com/fumakill4/BitChord/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-E8743B?style=for-the-badge)](LICENSE)
-[![Platforms](https://img.shields.io/badge/macOS_14+_·_iOS_17+-F5263F?style=for-the-badge)](#download)
+[![Platform](https://img.shields.io/badge/macOS_Intel_x86__64-15.0+-F5263F?style=for-the-badge&logo=apple&logoColor=white)](#build-from-source)
+[![Touch Bar](https://img.shields.io/badge/Touch_Bar-Synced_Lyrics-2F81F7?style=for-the-badge)](#whats-new-in-this-intel-mac-rebuild)
 
 [![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin_Multiplatform-7F52FF?logo=kotlin&logoColor=white)](shared)
 [![Compose Multiplatform](https://img.shields.io/badge/Compose_Multiplatform-4285F4?logo=jetpackcompose&logoColor=white)](desktopApp)
-[![SwiftUI](https://img.shields.io/badge/SwiftUI-F05138?logo=swift&logoColor=white)](#download)
-[![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-555555?logo=apple&logoColor=white)](#download)
+[![Swift AppKit](https://img.shields.io/badge/Swift_·_AppKit_·_MediaPlayer-F05138?logo=swift&logoColor=white)](desktopApp/src/main/swift/macos/BitChordMacMedia.swift)
 
 <br>
 
-**[Download](#download)** · **[Features](#features)** · **[Install](#install)** · **[Original Repo](https://github.com/kushagrasinghx/BitChord)** · **[Disclaimer](#disclaimer)**
+**[What's New](#whats-new-in-this-intel-mac-rebuild)** · **[Install](#install)** · **[Build from Source](#build-from-source)** · **[Features](#features)** · **[Upstream Repo](https://github.com/fumakill4/BitChord)** · **[Disclaimer](#disclaimer)**
 
 <br>
 
-<img src="Banner.png" alt="BitChord on Mac and iOS" width="100%">
+<img src="Banner.png" alt="BitChord banner" width="100%">
 
 </div>
 
 > [!IMPORTANT]
-> This BitChord is a dedicated Apple platform (macOS Apple Silicon & iOS)  and Windows,  Fumakill4's own fork of BitChord for Android, rebuilt for macOS, iPhone, iPad, and Windows so the Android team doesn't make or support it.
+> This repository is an **Intel Mac (`x86_64`) rebuild** based on [fumakill4/BitChord](https://github.com/fumakill4/BitChord) (`v2.0.0`), adapted for Intel MacBook Pro hardware with native **MacBook Pro Touch Bar synced lyrics**, verified `x86_64` native dependencies, and automatic Gradle JDK 21 toolchain provisioning.
 
 ---
 
-## <a id="download"></a>Download
+## <a id="whats-new-in-this-intel-mac-rebuild"></a>What's New in This Intel Mac Rebuild
 
-<div align="center">
+### 🎹 MacBook Pro Touch Bar Synced Lyrics
+- **Word- & line-synced lyrics on the Touch Bar** — renders active lyric lines directly alongside playback transport controls (`Previous`, `Play/Pause`, `Next`) inside the MacBook Pro Touch Bar via a native AppKit `NSTouchBar` bridge (`com.music.bitchord.lyric`).
+- **Word-by-word highlight & auto-panning** — tracks word timing (`revealedChars`), highlights sung text in white against muted upcoming words, and smoothly pans long lines in-place without Touch Bar flicker.
+- **Tap to toggle** — tapping the lyric strip on the Touch Bar toggles the in-app lyrics view.
+- **Graceful fallback** — displays `track — artist` when no synced lyrics are available, and a subtle instrumental label during instrumental passages.
+- **Native macOS media integration** — integrates with `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter` for Control Center, Lock Screen, and hardware media keys.
 
-### 💻 macOS (Apple Silicon)
-<a href="https://github.com/fumakill4/BitChord/releases/download/macos-v1.9.1.E4/BitChord-1.9.1.E4-macos-arm64.dmg">
-  <img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/macos/cozy.svg" alt="Download for macOS" height="60">
-</a>
-
-<br/>
-
-**[Download BitChord-1.9.1.E4-macos-arm64.dmg (Latest Apple Silicon Release)](https://github.com/fumakill4/BitChord/releases/download/macos-v1.9.1.E4/BitChord-1.9.1.E4-macos-arm64.dmg)**<br>
-<sub>macOS Apple Silicon · Build 1.9.1.E4 · [Release notes](https://github.com/fumakill4/BitChord/releases/tag/macos-v1.9.1.E4)</sub>
-
-<br/>
-
-### 📱 iPhone & iPad (iOS 17+)
-<a href="https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-ios">
-  <img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/ios/cozy.svg" alt="Download for iOS" height="60">
-</a>
-
-<br/>
-
-**[Download BitChord-iOS-v1.9.1.ipa (Dedicated iOS Release)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1-ios/BitChord-iOS-v1.9.1.ipa)**  
-<sub>View the dedicated **[iOS v1.9.1 Release Page](https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-ios)**</sub>
-
-<br/>
-
-### 🪟 Windows 10 & 11 (64-bit)
-<a href="https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-windows">
-  <img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/windows/cozy.svg" alt="Download for Windows" height="60">
-</a>
-
-<br/>
-
-**[Download BitChord-1.9.1-windows-x64-setup.exe (Windows Installer)](https://github.com/fumakill4/BitChord/releases/download/v1.9.1-windows/BitChord-1.9.1-windows-x64-setup.exe)**  
-<sub>Or get the portable version: **[BitChord-1.9.1-windows-x64-portable.zip](https://github.com/fumakill4/BitChord/releases/download/v1.9.1-windows/BitChord-1.9.1-windows-x64-portable.zip)**</sub>
-
-</div>
+### 💻 Intel Mac (`x86_64`) Native Compatibility
+- **ONNX Runtime `1.20.0` (`osx-x64`)** for Automix beat/audio analysis on Intel Macs (later ONNX Runtime releases dropped `x86_64` macOS binaries).
+- **Native `x86_64` Desktop Stack** — bundles `compose.desktop.macos_x64`, FFmpeg `7.1.1-1.5.12` (`macosx-x86_64`), and JavaFX `21.0.10` (`mac`) for BotGuard PoToken generation.
+- **Swift Native Bridge** — compiles [`BitChordMacMedia.swift`](desktopApp/src/main/swift/macos/BitChordMacMedia.swift) via `xcrun --sdk macosx swiftc -target x86_64-apple-macosx15.0` into `libbitchord_macos_media.dylib`.
+- **Gradle Foojay Toolchain Resolver** — [`settings.gradle.kts`](settings.gradle.kts) includes `org.gradle.toolchains.foojay-resolver-convention` (`0.9.0`) to provision a compatible `x86_64` Java 21 JDK automatically, and skips Android/TV/WearOS targets cleanly when no Android SDK is installed.
 
 ---
 
 ## <a id="install"></a>Install
 
-### 💻 Mac (Apple Silicon)
+Prebuilt macOS disk images (when published under **[GitHub Releases](https://github.com/ahdiru/BitchordIntelMac/releases)**) bundle their own Java 21 runtime, FFmpeg natives, ONNX Runtime, Automix models, and `libbitchord_macos_media.dylib` — no external JDK installation required.
 
-1. Download **`BitChord-1.9.1.E4-macos-arm64.dmg`** from the [macOS release](https://github.com/fumakill4/BitChord/releases/tag/macos-v1.9.1.E4) page.
-2. Open the `.dmg` file and drag **BitChord.app** into your **Applications** folder.
-3. **Gatekeeper Notice:** Because this is an open-source build without an Apple Developer ID signature, Gatekeeper may display a prompt on the first launch (*"BitChord is from an unidentified developer"*).  
-   You can easily open it by running this command in Terminal:
+1. Download `BitChord-2.0.0.dmg` from the [Releases](https://github.com/ahdiru/BitchordIntelMac/releases) page (or build it locally using the steps below).
+2. Open the `.dmg` and drag **BitChord.app** into your **Applications** folder.
+3. **Gatekeeper Notice:** Because local/open-source builds are not notarized with a paid Apple Developer ID, macOS Gatekeeper may warn on first launch (*"BitChord is from an unidentified developer"* or *"damaged"*). Clear the quarantine attribute in Terminal:
    ```sh
    xattr -cr /Applications/BitChord.app
    ```
-   Or right-click (Control-click) `BitChord.app` in Finder and select **Open**.
+   Or Control-click `BitChord.app` in Finder and choose **Open**.
 
-### 📱 iPhone & iPad (Sideloading)
+---
 
-1. Download **`BitChord-iOS-v1.9.1.ipa`** from the [iOS Release](https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-ios) page.
-2. Sideload it using your preferred sideloading tool:
-   - **AltStore / SideStore**: Open the IPA in the app and sign with your Apple ID.
-   - **Sideloadly**: Connect your device, drag the IPA into Sideloadly, and click Start.
-   - **TrollStore** (if supported on your iOS version): Install directly without revokes.
-   - **Scarlet**: Direct on-device installation.
-3. If prompted by iOS, go to **Settings → General → VPN & Device Management** and trust your developer certificate.
+## <a id="build-from-source"></a>Build from Source (Intel Mac)
 
-### 🪟 Windows (10 & 11)
+### Prerequisites
+- macOS (`x86_64` Intel Mac, targeted against macOS 15 SDK)
+- **Xcode Command Line Tools** (`xcrun` and `swiftc`) for building `libbitchord_macos_media.dylib`
+- **CMake** (optional but required to compile the C++ Automix analyser `libbitchord_analysis.dylib`)
+- Java 21 is resolved automatically via Gradle Toolchains (`foojay-resolver-convention` `0.9.0`)
 
-**Option A — Setup Installer (Recommended):**
-1. Download **`BitChord-1.9.1-windows-x64-setup.exe`** from the [Windows Release](https://github.com/fumakill4/BitChord/releases/tag/v1.9.1-windows) page.
-2. Run the `.exe` installer. It installs for the current user (no administrator permission required) and creates shortcuts in your Start Menu and Desktop.
-3. **SmartScreen Notice:** If Windows SmartScreen displays a warning (*"Windows protected your PC"*), click **More info** and select **Run anyway**.
+### Commands
 
-**Option B — Portable (.zip):**
-1. Download **`BitChord-1.9.1-windows-x64-portable.zip`**.
-2. Extract the archive to any folder or external drive.
-3. Launch **`BitChord.exe`** directly without installation.
+```sh
+# Clone the repository
+git clone https://github.com/ahdiru/BitchordIntelMac.git
+cd BitchordIntelMac
+
+# Run desktop tests (including Touch Bar lyrics formatting tests)
+./gradlew :desktopApp:test
+
+# Run BitChord directly from Gradle
+./gradlew :desktopApp:run
+
+# Build standalone BitChord.app bundle
+./gradlew :desktopApp:createDistributable
+# Output: desktopApp/build/compose/binaries/main/app/BitChord.app
+
+# Package macOS .dmg installer
+./gradlew :desktopApp:packageDmg -Pbitchord.version=2.0.0
+# Output: desktopApp/build/compose/binaries/main/dmg/BitChord-2.0.0.dmg
+```
+
+> See [DESKTOP.md](DESKTOP.md) for cross-platform desktop notes (Linux and Windows).
 
 ---
 
 <div align="center">
-
-<img src="Banner.png" alt="BitChord banner" width="100%" />
 
 <h1><a id="features"></a>Features</h1>
 
@@ -126,14 +109,14 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 - **Search, browse and play** anything available on YouTube Music.
 - **Hi-Res lossless audio** — FLAC/ALAC from a configured module source, with YouTube Music as fallback.
 - **Gapless playback with true crossfade**, adjustable 0–12s.
-- **Automix [Beta]** — DJ-style transitions with beat-matching and tempo-stretching.
+- **Automix [Beta]** — DJ-style transitions with ONNX beat-matching and tempo-stretching.
 - **Offline downloads** — save tracks with embedded metadata.
 - **Local music library** integration.
-- **Background playback** via a proper foreground media session.
+- **Native macOS media controls** — `MPNowPlayingInfoCenter` and hardware media keys.
 - **Apple-like lyrics animation** — credit to [binimum](https://github.com/binimum/am-lyrics).
 
 #### Connectivity & Accounts
-- **Sign in with your Google account** for personalized content.
+- **Sign in with your Google account** for personalized content and PoToken support.
 - **Spotify integration** — connect your account to play your playlists and Liked Songs.
 - **Discord Rich Presence** — in-app login, live track/artist/album and progress.
 - **Scrobbling** to Last.fm and ListenBrainz.
@@ -143,18 +126,18 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
     <td width="50%" valign="top">
 
 #### Experience
+- **MacBook Pro Touch Bar lyrics** — live word-synced lyrics with auto-panning and tap-to-toggle.
 - **Animated album canvas** — motion artwork on the now-playing screen.
 - **Word-synced lyrics** — word/syllable-level highlighting from multiple sources.
 - **Lyrics providers** — credit to [lrc.red](https://lrc.red), [BiniLyrics](https://github.com/binimum), [BetterLyrics](https://github.com/better-lyrics/better-lyrics), [PaxSenix](https://lyrics.paxsenix.org), [LyricsPlus](https://github.com/ibratabian17/YouLyPlus), [SimpMusic](https://github.com/maxrave-dev/SimpMusic), [Unison](https://unison.boidu.dev), [Megalobiz](https://www.megalobiz.com), [KuGou](https://www.kugou.com), [LRCLIB](https://lrclib.net), [Musixmatch](https://www.musixmatch.com) and [Genius](https://genius.com).
 - **Dynamic, artwork-driven theming** — Material palette extracted from album art.
-- **Frosted-glass UI** — Telegram-style translucent bars via Haze, Material 3 theming.
+- **Frosted-glass UI** — translucent bars via Haze, Material 3 theming, and macOS vibrancy.
 
 #### Controls & Tweaks
-- **Per-network audio quality** — separate quality ceilings for Wi-Fi and mobile data.
-- **Playback speed control** (0.5×–2.0×) and **skip silence**.
+- **Audio quality controls** and **playback speed** (0.5×–2.0×) with **skip silence**.
 - **Sleep timer** — fixed presets or "stop after this track".
-- **System equalizer** integration.
-- **Bit-perfect USB exclusive output** — sends lossless tracks to a USB DAC unchanged, at each track's own rate and bit depth. Thanks to [Mornye](https://github.com/mornyeapp/Mornye) for the reference.
+- **Equalizer & DSP** controls.
+- **Bit-perfect output** support for lossless playback.
 - **Stats for nerds** — codec, bit depth, sample rate, and more on the now-playing screen.
 
     </td>
@@ -164,7 +147,6 @@ YouTube Music, your own library, DJ-style Automix and Hi-Res playback.
 </div>
 
 ---
-
 
 <div align="center">
 
